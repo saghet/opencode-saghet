@@ -1,0 +1,51 @@
+{
+  "distribution": "OpenCode-Saghet",
+  "version": "0.1.0-alpha",
+  "upstream": {
+    "repository": "https://github.com/anomalyco/opencode",
+    "version": "2.3.2",
+    "license": "MIT"
+  },
+  "target_os": {
+    "distro": "Garuda Linux (Arch-based)",
+    "kernel_tested": "7.3.4-zen2-2-zen"
+  },
+  "hardware_profile": {
+    "cpu": "AMD Ryzen 9 7940HS",
+    "gpu": "NVIDIA GeForce RTX 4060 Laptop",
+    "vram_mib": 8188,
+    "ram_gib": 32,
+    "cuda_umd_tested": "13.5"
+  },
+  "pinned_components": {
+    "ollama": "0.40.16",
+    "opencode_dcp": {
+      "package": "@tarquinen/opencode-dcp",
+      "version": "3.2.1"
+    },
+    "opencode_mem": {
+      "package": "opencode-mem",
+      "version": "2.43.0"
+    },
+    "plannotator_opencode": {
+      "package": "@plannotator/opencode",
+      "version": "0.29.0",
+      "commit": "a305693458f1",
+      "license": "MIT OR Apache-2.0"
+    },
+    "oak_reference": {
+      "repository": "https://github.com/jcarlosrodicio/opencode-agent-orchestration-kit",
+      "version": "1.2.0",
+      "commit": "ac4bc52d03a1",
+      "license": "Apache-2.0"
+    },
+    "dbhub": {
+      "package": "@bytebase/dbhub",
+      "version": "1.7.1"
+    },
+    "mcp_sequential_thinking": {
+      "package": "@modelcontextprotocol/server-sequential-thinking",
+      "version": "2.2.0"
+    }
+  }
+}

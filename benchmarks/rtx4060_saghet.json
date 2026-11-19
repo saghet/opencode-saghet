@@ -1,0 +1,59 @@
+{
+  "gpu": {
+    "available": true,
+    "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "driver": "620.70.06",
+    "gpu_util_pct": 0.0,
+    "vram_used_mib": 26.0,
+    "vram_total_mib": 8188.0,
+    "temp_c": 51.98
+  },
+  "ram_mib": {
+    "total_mib": 31295.2,
+    "used_mib": 7938.3
+  },
+  "opencode_cli": {
+    "version_ms": 151.5,
+    "debug_agents_ms": 187.5
+  },
+  "installed_models_count": 11,
+  "fallback_test": "qwen3.5:9b",
+  "benchmarks": [
+    {
+      "model": "qwen3.5:4b",
+      "ok": true,
+      "ttft_ms": 2582.7,
+      "total_s": 3.28,
+      "eval_tokens": 48,
+      "tok_per_s": 69.3,
+      "vram_used_mib": 4078.0
+    },
+    {
+      "model": "qwen3.5:9b",
+      "ok": true,
+      "ttft_ms": 3830.7,
+      "total_s": 4.96,
+      "eval_tokens": 48,
+      "tok_per_s": 42.32,
+      "vram_used_mib": 6564.0
+    },
+    {
+      "model": "qwen2.5-coder:7b",
+      "ok": true,
+      "ttft_ms": 3168.1,
+      "total_s": 4.11,
+      "eval_tokens": 48,
+      "tok_per_s": 51.15,
+      "vram_used_mib": 5106.0
+    },
+    {
+      "model": "abliterant/qwen3.5-rana:9b",
+      "ok": true,
+      "ttft_ms": 9233.8,
+      "total_s": 10.37,
+      "eval_tokens": 48,
+      "tok_per_s": 42.12,
+      "vram_used_mib": 6560.0
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "storagePath": "__SAGHET_HOME__/.opencode-mem/data",
+  "embeddingModel": "Xenova/nomic-embed-text-v1",
+  "autoCaptureEnabled": true,
+  "autoCaptureProviderOrder": "opencode-first",
+  "opencodeProvider": "ollama",
+  "opencodeModel": "qwen2.5-coder:7b",
+  "opencodeTimeoutMs": 45000,
+  "userProfileEnabled": true,
+  "chatMessage": {
+    "enabled": true,
+    "maxMemories": 6
+  },
+  "webServerEnabled": true,
+  "webServerHost": "127.0.0.1",
+  "webServerPort": 4747,
+  "showErrorToasts": true
+}

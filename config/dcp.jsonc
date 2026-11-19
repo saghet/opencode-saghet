@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Tarquinen/opencode-dynamic-context-pruning/master/dcp.schema.json",
+  "enabled": true,
+  "autoUpdate": false,
+  "debug": false,
+  "pruneNotification": "detailed",
+  "pruneNotificationType": "chat",
+  "compress": {
+    "mode": "range",
+    "minContextLimit": 4500,
+    "maxContextLimit": 11500,
+    "protectUserMessages": false
+  },
+  "strategies": {
+    "deduplication": {
+      "enabled": true
+    },
+    "purgeErrors": {
+      "enabled": true,
+      "turns": 4
+    }
+  }
+}

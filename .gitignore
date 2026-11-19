@@ -1,0 +1,32 @@
+# Secrets & local credentials
+.env
+.env.*
+!.env.example
+.env.db
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+service.json
+.auth-token
+
+# Runtime, caches & local databases
+__pycache__/
+*.pyc
+node_modules/
+dist/
+build/
+.cache/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.log
+backups/
+
+# OS & editor artifacts
+.DS_Store
+.directory
+.vscode/
+.idea/

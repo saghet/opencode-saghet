@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCode-Saghet — Control Center</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-badge">SAGHET</span>
+        <div>
+          <h1>OpenCode-Saghet Control Center</h1>
+          <p class="subtitle">Distribución IA Local-First · Garuda Linux · RTX 4060 8GB</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="health-pill" class="pill pill-muted">Conectando...</span>
+        <button id="refresh-btn" class="btn">Actualizar</button>
+        <button id="theme-toggle" class="btn btn-primary">Tema Claro</button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <section class="card span-2">
+        <h2>Hardware, GPU CUDA y Ollama</h2>
+        <div id="hardware-metrics" class="metrics-row"></div>
+        <div id="ollama-running" class="subpanel"></div>
+      </section>
+
+      <section class="card">
+        <h2>Consumo de Tokens (Sesiones recientes)</h2>
+        <div id="token-metrics" class="metrics-row"></div>
+      </section>
+
+      <section class="card">
+        <h2>Plugins, MCP y Servicios</h2>
+        <div id="tools-status" class="list"></div>
+      </section>
+
+      <section class="card span-2">
+        <h2>Panel de Agentes</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Agente</th>
+                <th>Modo</th>
+                <th>Modelo</th>
+                <th>Permisos / Herramientas</th>
+              </tr>
+            </thead>
+            <tbody id="agents-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card span-2">
+        <h2>Tareas y Delegaciones</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sesión</th>
+                <th>Agente</th>
+                <th>Delegado desde</th>
+                <th>Estado</th>
+                <th>Tokens (In/Out)</th>
+                <th>Directorio</th>
+              </tr>
+            </thead>
+            <tbody id="sessions-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card span-2">
+        <h2>Proveedores y Modelos</h2>
+        <div id="providers-list" class="providers-grid"></div>
+      </section>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

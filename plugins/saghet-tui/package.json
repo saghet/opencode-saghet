@@ -1,0 +1,11 @@
+{
+  "name": "opencode-saghet-tui",
+  "version": "0.1.0",
+  "description": "OpenCode-Saghet TUI identity, telemetry toast, and Control Center launcher plugin",
+  "type": "module",
+  "main": "./index.js",
+  "license": "MIT",
+  "peerDependencies": {
+    "@opencode/plugin": "2.0.4"
+  }
+}

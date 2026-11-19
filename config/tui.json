@@ -1,0 +1,6 @@
+{
+  "plugin": [
+    "__SAGHET_HOME__/.config/opencode/tui-plugins/saghet-tui/index.js"
+  ],
+  "theme": "saghet-dark"
+}

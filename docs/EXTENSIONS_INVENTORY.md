@@ -1,0 +1,14 @@
+# Inventario de Extensiones, Plugins, MCP y Skills — OpenCode-Saghet
+
+| Componente | Tipo | Repositorio / Paquete | Versión Fijada | Licencia | Dependencias Clave | Función | Agentes que lo usan | Permisos | Estado de Pruebas |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **opencode-dcp** | Plugin | `@tarquinen/opencode-dcp` | `3.2.1` | `AGPL-3.0-or-later` | `@opencode/plugin` | Poda dinámica de contexto y deduplicación | Todos | Lectura de historial de sesión | Probado (cargado en `opencode plugin list`) |
+| **opencode-mem** | Plugin | `opencode-mem` | `2.43.0` | `MIT` | Embeddings locales (`Xenova/nomic-embed-text-v1`), `qwen2.5-coder:7b` | Memoria persistente local + UI web `:4747` | Todos | Escritura en `~/.opencode-mem/data` | Probado (cargado y puerto `:4747` activo) |
+| **@plannotator/opencode** | Plugin | `backnotprop/plannotator` | `0.29.0` | `MIT OR Apache-2.0` | `@opencode/plugin` `>=2.0.32` | Revisión visual interactiva de planes y diffs | `saghet-orchestrator`, `architect`, `code-reviewer` | Servidor local temporal navegador | Integrado en Fase 6 (verificado en despliegue) |
+| **saghet-tui** | Plugin TUI | Propio (`plugins/saghet-tui`) | `0.1.0` | `MIT` | `@opencode/plugin/tui` | Comandos rápidos Saghet y alertas de sesión en TUI | Interfaz TUI | Solo lectura de estado TUI | Sintaxis y carga verificadas |
+| **dbhub** | MCP (local) | `@bytebase/dbhub` | `1.7.1` | `Apache-2.0` | Node.js, `.env.db` | Acceso SQL controlado (SQLite / PostgreSQL) | `database-specialist` | RO por defecto, RW con confirmación | Probado (6 tools conectadas en logs) |
+| **sequential-thinking** | MCP (local) | `@modelcontextprotocol/server-sequential-thinking` | `2.2.0` | `MIT` | Node.js | Razonamiento estructurado paso a paso | `saghet-orchestrator`, `architect`, `plan` | Sin acceso a disco | Probado (1 tool conectada en logs) |
+| **context7** | MCP (remoto) | `https://mcp.context7.com/mcp` | Remoto | Servicio externo | Red HTTPS | Consulta de documentación técnica actualizada | `researcher`, `senior-developer`, `architect` | Red saliente HTTPS (solo lectura) | Probado (2 tools conectadas en logs) |
+| **worktree-isolation** | Skill | Propio (`skills/worktree-isolation`) | `1.0.0` | `MIT` | `git` | Aislamiento seguro de ramas con `git worktree` | `saghet-orchestrator`, `devops-engineer`, `senior-developer` | `bash` controlado | Verificado |
+| **db-safe-ops** | Skill | Propio (`skills/db-safe-ops`) | `1.0.0` | `MIT` | `sqlite3`, `psql`, `atlas`, `valkey-cli` | Respaldos, `EXPLAIN`, integridad y seguridad BD | `database-specialist`, `backend-specialist` | Solo lectura por defecto | Verificado con `sqlite3` y `atlas` |
+| **security-checklist** | Skill | Propio (`skills/security-checklist`) | `1.0.0` | `MIT` | `git` | Auditoría de secretos, permisos y dependencias | `security-auditor`, `code-reviewer` | Solo lectura | Verificado |
