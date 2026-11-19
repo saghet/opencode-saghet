@@ -12,7 +12,10 @@ if [ -d "$CFG_DIR" ]; then
   done
   rm -rf "${CFG_DIR}/tui-plugins/saghet-tui" \
          "${CFG_DIR}/themes/saghet-dark.json" \
-         "${CFG_DIR}/themes/saghet-light.json"
+         "${CFG_DIR}/themes/saghet-light.json" \
+         "${HOME}/.local/bin/opencode-saghet" \
+         "${HOME}/.local/share/applications/ai.opencode.desktop.desktop" \
+         "${HOME}/.local/share/applications/opencode-saghet-dashboard.desktop"
   echo "[OK] Artefactos Saghet eliminados. Respaldo guardado en ${SNAP}."
   echo "Nota: Para restaurar tu configuración original, ejecuta: ./restore.sh 20261119_phase1_baseline"
 fi

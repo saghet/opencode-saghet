@@ -84,6 +84,36 @@ if [ "$DRY_RUN" -eq 0 ]; then
     mkdir -p "${CFG_DIR}/skills/${s}"
     cp -a "${REPO_DIR}/skills/${s}/SKILL.md" "${CFG_DIR}/skills/${s}/SKILL.md"
   done
+
+  mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/applications"
+  sed "s|__SAGHET_REPO__|${REPO_DIR}|g" "${REPO_DIR}/scripts/opencode-saghet" > "${HOME}/.local/bin/opencode-saghet"
+  chmod +x "${HOME}/.local/bin/opencode-saghet"
+
+  cat > "${HOME}/.local/share/applications/ai.opencode.desktop.desktop" << 'DESK'
+[Desktop Entry]
+Name=OpenCode-Saghet
+Comment=OpenCode-Saghet AI Development Distribution
+Exec=opencode-desktop %U
+Terminal=false
+Type=Application
+Icon=ai.opencode.desktop
+StartupWMClass=ai.opencode.desktop
+MimeType=x-scheme-handler/opencode;
+Categories=Development;
+DESK
+
+  cat > "${HOME}/.local/share/applications/opencode-saghet-dashboard.desktop" << DESK
+[Desktop Entry]
+Name=OpenCode-Saghet Control Center
+Comment=Panel visual de agentes, modelos, VRAM/CUDA y telemetría
+Exec=${HOME}/.local/bin/opencode-saghet --dashboard
+Terminal=false
+Type=Application
+Icon=ai.opencode.desktop
+Categories=Development;
+DESK
+
+  command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "${HOME}/.local/share/applications" >/dev/null 2>&1 || true
 fi
 
 log "6/8 Verificando Ollama y modelos locales..."

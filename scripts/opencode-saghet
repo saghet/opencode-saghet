@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# OpenCode-Saghet — Lanzador unificado CLI + Control Center
+SAGHET_REPO="${SAGHET_REPO:-__SAGHET_REPO__}"
+DASHBOARD_PORT="${SAGHET_DASHBOARD_PORT:-4780}"
+
+if [ "${1:-}" = "dashboard" ] || [ "${1:-}" = "--dashboard" ]; then
+  if ! curl -sf "http://127.0.0.1:${DASHBOARD_PORT}/health" >/dev/null 2>&1; then
+    nohup python3 "${SAGHET_REPO}/dashboard/server.py" --port "${DASHBOARD_PORT}" >/tmp/saghet-dashboard.log 2>&1 &
+    sleep 0.8
+  fi
+  exec xdg-open "http://127.0.0.1:${DASHBOARD_PORT}"
+fi
+
+exec /usr/bin/opencode "$@"
