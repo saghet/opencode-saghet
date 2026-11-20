@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 88" fill="none">
+  <defs>
+    <linearGradient id="logoGreen" x1="0" y1="0" x2="460" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00FF66" />
+      <stop offset="100%" stop-color="#00C853" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="84" height="84" rx="14" fill="#030705" stroke="#164B30" stroke-width="2" />
+  <polygon points="44,12 72,28 72,60 44,76 16,60 16,28" fill="#080F0B" stroke="#064D2B" stroke-width="1.5" />
+  <path d="M58 30H35L27 38L35 44H53L61 50L53 58H30" stroke="url(#logoGreen)" stroke-width="4.5" stroke-linecap="square" />
+  <circle cx="58" cy="30" r="2.5" fill="#E5F5EA" />
+  <circle cx="30" cy="58" r="2.5" fill="#00FF66" />
+
+  <text x="104" y="40" fill="#E5F5EA" font-family="'JetBrains Mono', 'IBM Plex Mono', monospace" font-size="24" font-weight="700" letter-spacing="2">OPENCODE-SAGHET</text>
+  <text x="104" y="65" fill="#00FF66" font-family="'JetBrains Mono', 'IBM Plex Mono', monospace" font-size="13" font-weight="600" letter-spacing="4">SAGHET // MATRIX PROTOCOL</text>
+  <line x1="104" y1="73" x2="442" y2="73" stroke="#164B30" stroke-width="1" />
+</svg>

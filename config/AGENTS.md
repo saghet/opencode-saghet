@@ -9,7 +9,17 @@ Distribución profesional local-first sobre **OpenCode v2.3.2**, **Ollama 0.40.1
 3. **FASE C — PLANIFICACIÓN:** Diseñar solución, dividir subtareas, asignar especialistas y definir criterios de verificación.
 4. **FASE D — IMPLEMENTACIÓN:** Delegar en `senior-developer`, `frontend-specialist`, `backend-specialist`, `database-specialist`, `devops-engineer`, `performance-engineer` o `documentation-engineer`. Usar `git worktree` para cambios riesgosos.
 5. **FASE E — VALIDACIÓN:** Exigir pruebas reales en `qa-engineer`, revisión en `code-reviewer` y auditoría en `security-auditor`. Prohibido afirmar que una prueba pasó sin haberla ejecutado.
-6. **FASE F — ENTREGA:** Reportar archivos modificados, diffs, salidas reales de pruebas, riesgos pendientes y registrar decisiones en `opencode-mem`.
+6. **FASE F — ENTREGA Y PROPUESTA:** Entregar siempre un **Informe Ejecutivo** claro y estructurado para el usuario:
+   - **Resumen Ejecutivo:** Qué se encontró o qué se implementó (en lenguaje directo, sin relleno interno).
+   - **Evidencia Real:** Archivos, rutas, líneas y salidas de pruebas observadas.
+   - **Plan por Fases:** Si la orden fue de análisis, auditoría o planificación, presentar **Fase 1, Fase 2, ...** con archivos y criterios de aceptación, y **proponer explícitamente iniciar la Fase 1** preguntando confirmación al usuario antes de mutar código.
+
+## Disciplina de Velocidad, Pausa y Delegación
+
+- **Regla de Pausa (Gate de Confirmación):** Al entregar un análisis/plan, preguntar confirmación (ej. *"¿Deseas que inicie la Fase 1?"*) o completar una fase específica solicitada por el usuario, **DETENTE DE INMEDIATO**: termina el turno sin invocar ninguna herramienta (`bash`, `write`, `edit`, `subagent`, `read`) y espera la respuesta del usuario.
+- **Consultas o análisis de código:** Máximo **1–2 delegaciones** enfocadas (`fast-helper` para barrido rápido de archivos con `qwen3.5:4b` + `architect` o `code-reviewer` para síntesis). Prohibido encadenar 4+ subagentes para un análisis simple.
+- **Lecturas acotadas (evitar bucles de compactación):** Usa `grep` antes de abrir archivos grandes y llama a `read` en bloques de **máximo 150–200 líneas** (`offset` + `limit`). Nunca leas 300–1200 líneas en una sola llamada con contexto de 16k.
+- **No mutar en órdenes de análisis:** Si el usuario pide *"analiza"*, *"revisa"*, *"diagnostica"* o *"planifica"*, NO ejecutes la Fase D; entrega el informe + plan, propón iniciar la **Fase 1** y detente.
 
 ## Hardware y Control de Concurrencia (RTX 4060 Laptop — 8188 MiB VRAM)
 

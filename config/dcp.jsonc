@@ -6,6 +6,7 @@
   "pruneNotification": "detailed",
   "pruneNotificationType": "chat",
   "compress": {
+    "permission": "deny",
     "mode": "range",
     "minContextLimit": 4500,
     "maxContextLimit": 11500,

@@ -1,0 +1,28 @@
+{
+  "before": {
+    "ram_used_mib": 9181.8,
+    "gpu": {
+      "gpu_util_pct": 0.0,
+      "vram_used_mib": 26.0
+    }
+  },
+  "after": {
+    "ram_used_mib": 9478.7,
+    "gpu": {
+      "gpu_util_pct": 0.0,
+      "vram_used_mib": 26.0
+    }
+  },
+  "telemetry_api_ms": 627.3,
+  "headless_render_ms": {
+    "home": 1512.9,
+    "conversation": 1352.1,
+    "agents": 1292.6,
+    "performance": 1318.2,
+    "settings": 1262.5
+  },
+  "opencode_server_up": true,
+  "ollama_up": true,
+  "agents_count": 15,
+  "sessions_count": 30
+}

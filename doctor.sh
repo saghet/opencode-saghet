@@ -71,7 +71,16 @@ for f in opencode.json tui.json dcp.jsonc opencode-mem.jsonc AGENTS.md themes/sa
   fi
 done
 
-# 6. Validación JSON de opencode.json
+# 6. Servicio systemd del Control Center
+if command -v systemctl >/dev/null 2>&1; then
+  if systemctl --user is-enabled --quiet saghet-dashboard.service 2>/dev/null; then
+    ok "Servicio saghet-dashboard.service habilitado en arranque"
+  else
+    warn "Servicio saghet-dashboard.service no habilitado (ejecuta ./install.sh)"
+  fi
+fi
+
+# 7. Validación JSON de opencode.json
 if [ -f "${CFG_DIR}/opencode.json" ]; then
   if python3 -m json.tool "${CFG_DIR}/opencode.json" >/dev/null 2>&1; then
     ok "opencode.json es JSON válido"

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# OpenCode-Saghet — Lanzador unificado CLI + Control Center
+# OpenCode-Saghet — Lanzador unificado CLI + Control Center + Desktop Matrix
 SAGHET_REPO="${SAGHET_REPO:-__SAGHET_REPO__}"
 DASHBOARD_PORT="${SAGHET_DASHBOARD_PORT:-4780}"
+DESKTOP_WRAPPER="${HOME}/.local/share/opencode-saghet/wrapper"
 
 if [ "${1:-}" = "dashboard" ] || [ "${1:-}" = "--dashboard" ]; then
   if ! curl -sf "http://127.0.0.1:${DASHBOARD_PORT}/health" >/dev/null 2>&1; then
@@ -11,6 +12,20 @@ if [ "${1:-}" = "dashboard" ] || [ "${1:-}" = "--dashboard" ]; then
     sleep 0.8
   fi
   exec xdg-open "http://127.0.0.1:${DASHBOARD_PORT}"
+fi
+
+if [ "${1:-}" = "desktop" ] || [ "${1:-}" = "--desktop" ]; then
+  shift
+  if [ "${SAGHET_DESKTOP_VANILLA:-0}" = "1" ] || ! command -v electron44 >/dev/null 2>&1; then
+    exec /usr/bin/opencode-desktop "$@"
+  fi
+  if [ ! -f "${DESKTOP_WRAPPER}/bootstrap.mjs" ] && [ -x "${SAGHET_REPO}/scripts/build-desktop-matrix.sh" ]; then
+    bash "${SAGHET_REPO}/scripts/build-desktop-matrix.sh" >/dev/null 2>&1 || true
+  fi
+  if [ -f "${DESKTOP_WRAPPER}/bootstrap.mjs" ]; then
+    exec electron44 "${DESKTOP_WRAPPER}" "$@"
+  fi
+  exec /usr/bin/opencode-desktop "$@"
 fi
 
 exec /usr/bin/opencode "$@"

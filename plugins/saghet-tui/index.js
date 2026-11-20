@@ -12,7 +12,7 @@ export default define({
       const running = sessions.filter((s) => context.data.session.status(s.id) === "running").length;
 
       context.ui.toast.show({
-        title: `OpenCode-Saghet (${context.themeMode})`,
+        title: `SAGHET // MATRIX PROTOCOL (${context.themeMode})`,
         message: `Agentes: ${agents.length} | MCP: ${mcps.length} | Sesiones activas: ${running}/${sessions.length}`,
         variant: "info",
         duration: 4500,
@@ -24,20 +24,20 @@ export default define({
       commands: [
         {
           id: "saghet.status",
-          title: "Saghet: Estado del entorno",
+          title: "Saghet // Matrix: Estado del entorno",
           description: "Muestra resumen de agentes, MCP y sesiones activas",
-          group: "OpenCode-Saghet",
+          group: "SAGHET // MATRIX PROTOCOL",
           onSelect: showStatus,
         },
         {
           id: "saghet.dashboard",
-          title: "Saghet: Abrir Control Center",
-          description: `Muestra la URL del Control Center (${DASHBOARD_URL})`,
-          group: "OpenCode-Saghet",
+          title: "Saghet // Matrix: Abrir Control Center",
+          description: `Abre la URL del Control Center (${DASHBOARD_URL})`,
+          group: "SAGHET // MATRIX PROTOCOL",
           onSelect: () => {
             context.ui.toast.show({
-              title: "Saghet Control Center",
-              message: `Disponible en ${DASHBOARD_URL}`,
+              title: "SAGHET // CONTROL CENTER",
+              message: `Matrix Protocol UI disponible en ${DASHBOARD_URL}`,
               variant: "success",
               duration: 5000,
             });
@@ -48,7 +48,7 @@ export default define({
 
     const unlisten = context.data.on("session.error", (event) => {
       context.ui.toast.show({
-        title: "Saghet: Error en sesión",
+        title: "SAGHET // ERROR EN SESIÓN",
         message: String(event?.properties?.error ?? "Error de ejecución detectado"),
         variant: "error",
         duration: 6000,

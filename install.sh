@@ -89,11 +89,15 @@ if [ "$DRY_RUN" -eq 0 ]; then
   sed "s|__SAGHET_REPO__|${REPO_DIR}|g" "${REPO_DIR}/scripts/opencode-saghet" > "${HOME}/.local/bin/opencode-saghet"
   chmod +x "${HOME}/.local/bin/opencode-saghet"
 
-  cat > "${HOME}/.local/share/applications/ai.opencode.desktop.desktop" << 'DESK'
+  if [ -f /usr/lib/opencode-desktop/app.asar ] && command -v electron44 >/dev/null 2>&1; then
+    bash "${REPO_DIR}/scripts/build-desktop-matrix.sh" || true
+  fi
+
+  cat > "${HOME}/.local/share/applications/ai.opencode.desktop.desktop" << DESK
 [Desktop Entry]
 Name=OpenCode-Saghet
-Comment=OpenCode-Saghet AI Development Distribution
-Exec=opencode-desktop %U
+Comment=OpenCode-Saghet // Matrix Protocol AI Development Distribution
+Exec=${HOME}/.local/bin/opencode-saghet --desktop %U
 Terminal=false
 Type=Application
 Icon=ai.opencode.desktop

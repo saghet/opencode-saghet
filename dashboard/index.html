@@ -3,84 +3,418 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpenCode-Saghet — Control Center</title>
+    <title>OPENCODE-SAGHET // MATRIX PROTOCOL</title>
+    <link rel="icon" type="image/svg+xml" href="/assets/matrix/app-icon.svg" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-badge">SAGHET</span>
-        <div>
-          <h1>OpenCode-Saghet Control Center</h1>
-          <p class="subtitle">Distribución IA Local-First · Garuda Linux · RTX 4060 8GB</p>
+    <canvas id="matrix-canvas" aria-hidden="true"></canvas>
+    <div class="matrix-grid-overlay" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <!-- A. BARRA SUPERIOR -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="sidebar-toggle" class="icon-btn" title="Alternar barra lateral" aria-label="Alternar barra lateral">☰</button>
+          <a href="#home" class="brand" data-nav="home">
+            <img src="/assets/matrix/saghet-symbol.svg" alt="Saghet" class="brand-icon" />
+            <div class="brand-text">
+              <span class="brand-title">OPENCODE-SAGHET</span>
+              <span class="brand-proto">MATRIX PROTOCOL</span>
+            </div>
+          </a>
+          <div id="session-tabs" class="session-tabs" role="tablist" aria-label="Pestañas de sesiones"></div>
         </div>
+
+        <div class="topbar-right">
+          <button id="pill-ollama" class="hud-pill hud-muted" data-nav="performance" title="Estado de Ollama">
+            <span class="dot"></span><span>Ollama: --</span>
+          </button>
+          <button id="pill-gpu" class="hud-pill hud-muted" data-nav="performance" title="GPU y VRAM">
+            <span>VRAM: --</span>
+          </button>
+          <button id="pill-ram" class="hud-pill hud-muted" data-nav="performance" title="RAM del sistema">
+            <span>RAM: --</span>
+          </button>
+          <button id="notif-btn" class="icon-btn notif-btn" title="Notificaciones" aria-label="Notificaciones">
+            <span>🔔</span>
+            <span id="notif-badge" class="notif-badge hidden">0</span>
+          </button>
+          <button class="icon-btn" data-nav="settings" title="Configuración" aria-label="Configuración">⚙</button>
+          <button id="hud-toggle" class="btn btn-ghost" title="Mostrar/Ocultar panel derecho">HUD</button>
+          <button id="refresh-btn" class="btn btn-primary" title="Actualizar telemetría">↻ Sync</button>
+        </div>
+      </header>
+
+      <!-- Popover de notificaciones -->
+      <div id="notif-popover" class="notif-popover hidden" role="dialog" aria-label="Notificaciones del sistema">
+        <div class="notif-header">
+          <span>NOTIFICACIONES DEL PROTOCOLO</span>
+          <button id="notif-close" class="icon-btn">✕</button>
+        </div>
+        <div id="notif-list" class="notif-list"></div>
       </div>
-      <div class="topbar-actions">
-        <span id="health-pill" class="pill pill-muted">Conectando...</span>
-        <button id="refresh-btn" class="btn">Actualizar</button>
-        <button id="theme-toggle" class="btn btn-primary">Tema Claro</button>
+
+      <div class="workspace-body">
+        <!-- B. BARRA LATERAL -->
+        <aside id="sidebar" class="sidebar" aria-label="Navegación principal">
+          <div class="sidebar-group">
+            <div class="sidebar-label">NÚCLEO</div>
+            <button class="nav-item active" data-nav="home"><span class="nav-glyph">◈</span><span>Inicio</span></button>
+            <button class="nav-item" data-nav="sessions"><span class="nav-glyph">⌘</span><span>Sesiones</span></button>
+            <button class="nav-item" data-nav="projects"><span class="nav-glyph">▤</span><span>Proyectos</span></button>
+            <button class="nav-item" data-nav="agents"><span class="nav-glyph">⬡</span><span>Agentes</span></button>
+          </div>
+          <div class="sidebar-group">
+            <div class="sidebar-label">ECOSISTEMA</div>
+            <button class="nav-item" data-nav="performance"><span class="nav-glyph">⚡</span><span>Ollama &amp; GPU</span></button>
+            <button class="nav-item" data-nav="plugins"><span class="nav-glyph">❖</span><span>Plugins</span></button>
+            <button class="nav-item" data-nav="tools"><span class="nav-glyph">⚒</span><span>Herramientas</span></button>
+            <button class="nav-item" data-nav="databases"><span class="nav-glyph">⛁</span><span>Bases de datos</span></button>
+            <button class="nav-item" data-nav="mcp"><span class="nav-glyph">⇄</span><span>MCP</span></button>
+          </div>
+          <div class="sidebar-group">
+            <div class="sidebar-label">SISTEMA</div>
+            <button class="nav-item" data-nav="settings"><span class="nav-glyph">⚙</span><span>Configuración</span></button>
+            <button class="nav-item" data-nav="diagnostics"><span class="nav-glyph">✚</span><span>Diagnóstico</span></button>
+            <button class="nav-item" data-nav="about"><span class="nav-glyph">ⓘ</span><span>Acerca de Saghet</span></button>
+          </div>
+          <div class="sidebar-footer">
+            <div id="server-status-line" class="status-line">
+              <span class="dot"></span><span>OpenCode v2.3.2</span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- C. ÁREA CENTRAL -->
+        <main id="main-stage" class="main-stage">
+          <!-- VISTA: INICIO -->
+          <section id="view-home" class="view active">
+            <div class="hero-panel">
+              <img src="/assets/matrix/saghet-logo.svg" alt="OpenCode-Saghet Matrix Protocol" class="hero-logo" />
+              <p class="hero-welcome">
+                ENTORNO LOCAL-FIRST ACTIVO · GARUDA LINUX · CUDA / OLLAMA · 13 ESPECIALISTAS LISTOS
+              </p>
+            </div>
+
+            <div class="composer-card">
+              <div class="composer-header">
+                <span class="composer-title">CONSOLA DE INSTRUCCIONES // PROMPT</span>
+                <span id="composer-status" class="tag tag-ok">LISTO</span>
+              </div>
+              <textarea
+                id="prompt-input"
+                class="prompt-textarea"
+                rows="4"
+                placeholder="Introduce una instrucción para saghet-orchestrator o selecciona un especialista..."
+              ></textarea>
+              <div class="composer-controls">
+                <label class="ctrl-field">
+                  <span>AGENTE</span>
+                  <select id="select-agent"></select>
+                </label>
+                <label class="ctrl-field">
+                  <span>MODELO</span>
+                  <select id="select-model"></select>
+                </label>
+                <label class="ctrl-field">
+                  <span>PROVEEDOR</span>
+                  <select id="select-provider"></select>
+                </label>
+                <label class="ctrl-field">
+                  <span>CONTEXTO / PROYECTO</span>
+                  <select id="select-project"></select>
+                </label>
+                <button id="run-prompt-btn" class="btn btn-execute">EJECUTAR //</button>
+              </div>
+
+              <div class="quick-actions" aria-label="Accesos rápidos">
+                <button class="quick-chip" data-quick="create">＋ Crear proyecto</button>
+                <button class="quick-chip" data-quick="analyze">◈ Analizar código</button>
+                <button class="quick-chip" data-quick="tests">✓ Ejecutar pruebas</button>
+                <button class="quick-chip" data-quick="research">⌕ Investigar</button>
+                <button class="quick-chip" data-quick="optimize">⚡ Optimizar</button>
+                <button class="quick-chip" data-quick="security">🛡 Auditar seguridad</button>
+              </div>
+            </div>
+
+            <div id="live-output-card" class="card hidden">
+              <div class="card-head">
+                <h2>RESPUESTA DE EJECUCIÓN</h2>
+                <div style="display:flex;gap:8px;">
+                  <button id="cancel-job-btn" class="btn hidden" style="border-color:var(--error);color:var(--error);">Detener</button>
+                  <button id="clear-output-btn" class="btn btn-ghost">Limpiar</button>
+                </div>
+              </div>
+              <pre id="live-output-pre" class="code-block"></pre>
+            </div>
+
+            <div class="home-summary-grid">
+              <div class="card">
+                <div class="card-head">
+                  <h2>TELEMETRÍA HARDWARE &amp; OLLAMA</h2>
+                  <button class="btn btn-ghost" data-nav="performance">Ver detalle →</button>
+                </div>
+                <div id="home-hw-metrics" class="metrics-grid"></div>
+              </div>
+              <div class="card">
+                <div class="card-head">
+                  <h2>SESIONES RECIENTES</h2>
+                  <button class="btn btn-ghost" data-nav="sessions">Abrir todas →</button>
+                </div>
+                <div id="home-recent-sessions" class="compact-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VISTA: SESIONES Y CONVERSACIÓN -->
+          <section id="view-sessions" class="view">
+            <div class="view-header">
+              <div>
+                <h1>SESIONES Y CONVERSACIONES</h1>
+                <p class="view-sub">Historial real, mensajes, bloques de código, diffs y delegaciones multiagente.</p>
+              </div>
+            </div>
+            <div class="split-layout">
+              <div class="card session-list-pane">
+                <h2>HISTORIAL DE SESIONES</h2>
+                <div id="sessions-full-list" class="compact-list"></div>
+              </div>
+              <div class="card session-detail-pane">
+                <div class="card-head">
+                  <h2 id="session-detail-title">SELECCIONA UNA SESIÓN</h2>
+                  <span id="session-detail-meta" class="tag">Sin selección</span>
+                </div>
+                <div id="session-messages-view" class="messages-stream">
+                  <div class="empty-state">Haz clic en una sesión de la izquierda para inspeccionar su conversación, herramientas y código.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VISTA: PROYECTOS -->
+          <section id="view-projects" class="view">
+            <div class="view-header">
+              <div>
+                <h1>EXPLORADOR DE PROYECTOS</h1>
+                <p class="view-sub">Espacios de trabajo detectados en OpenCode (OpenCiber, Default Project, Saghet, etc.).</p>
+              </div>
+              <button id="toggle-add-project-btn" class="btn btn-primary">+ Añadir proyecto</button>
+            </div>
+            <div id="add-project-panel" class="card hidden">
+              <h2>AÑADIR O ABRIR PROYECTO</h2>
+              <div class="composer-controls">
+                <label class="ctrl-field" style="flex: 3">
+                  <span>RUTA DEL PROYECTO</span>
+                  <input id="add-project-path" type="text" placeholder="/home/saghet/Documents/MiProyecto" />
+                </label>
+                <label class="ctrl-field" style="flex: 0 0 auto; flex-direction: row; align-items: center; gap: 6px; padding-bottom: 6px;">
+                  <input id="add-project-create" type="checkbox" />
+                  <span>Crear carpeta si no existe</span>
+                </label>
+                <button id="submit-add-project-btn" class="btn btn-execute">REGISTRAR //</button>
+              </div>
+              <div id="add-project-msg" class="view-sub" style="margin-top:8px;"></div>
+            </div>
+            <div class="card" style="padding: 10px 14px;">
+              <input id="projects-search" type="text" placeholder="⌕ Buscar proyectos por nombre o ruta..." style="width: 100%;" />
+            </div>
+            <div id="projects-grid" class="cards-grid"></div>
+          </section>
+
+          <!-- VISTA: AGENTES -->
+          <section id="view-agents" class="view">
+            <div class="view-header">
+              <h1>MATRIZ DE AGENTES (13 ESPECIALISTAS)</h1>
+              <p class="view-sub">Estado operativo, modelo asignado, modo de ejecución y matriz de permisos.</p>
+            </div>
+            <div id="agents-cards-grid" class="cards-grid"></div>
+          </section>
+
+          <!-- VISTA: OLLAMA, MODELOS Y RENDIMIENTO -->
+          <section id="view-performance" class="view">
+            <div class="view-header">
+              <h1>OLLAMA, MODELOS LOCALES Y RENDIMIENTO</h1>
+              <p class="view-sub">Telemetría real de RTX 4060 (8 GB VRAM), CPU Ryzen 9 7940HS, RAM y benchmarks.</p>
+            </div>
+            <div class="card">
+              <h2>MÉTRICAS EN VIVO (GPU / VRAM / CPU / RAM)</h2>
+              <div id="perf-hw-grid" class="metrics-grid"></div>
+              <div id="perf-vram-bar-wrap" class="vram-bar-wrap"></div>
+              <div id="perf-ollama-ps" class="subpanel"></div>
+            </div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>MODELOS LOCALES EN OLLAMA</h2>
+                <div id="ollama-models-table" class="table-wrap"></div>
+              </div>
+              <div class="card">
+                <h2>BENCHMARKS RTX 4060 (TOK/S &amp; VRAM)</h2>
+                <div id="benchmarks-table" class="table-wrap"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VISTA: PLUGINS -->
+          <section id="view-plugins" class="view">
+            <div class="view-header">
+              <h1>PLUGINS OPENCODE &amp; TUI</h1>
+              <p class="view-sub">Extensiones fijadas en compatibility.json y plugin TUI nativo.</p>
+            </div>
+            <div id="plugins-list" class="cards-grid"></div>
+          </section>
+
+          <!-- VISTA: HERRAMIENTAS & SKILLS -->
+          <section id="view-tools" class="view">
+            <div class="view-header">
+              <h1>HERRAMIENTAS, SKILLS Y PROVEEDORES</h1>
+              <p class="view-sub">Skills desplegadas en ~/.config/opencode/skills/ y proveedores configurados.</p>
+            </div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>SKILLS SAGHET</h2>
+                <div id="skills-list" class="compact-list"></div>
+              </div>
+              <div class="card">
+                <h2>PROVEEDORES ACTIVOS</h2>
+                <div id="providers-list" class="compact-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VISTA: BASES DE DATOS -->
+          <section id="view-databases" class="view">
+            <div class="view-header">
+              <h1>BASES DE DATOS (DBHUB MCP)</h1>
+              <p class="view-sub">Fuentes declaradas en ~/.config/opencode/dbhub.toml (sin exposición de credenciales).</p>
+            </div>
+            <div id="databases-list" class="cards-grid"></div>
+          </section>
+
+          <!-- VISTA: MCP -->
+          <section id="view-mcp" class="view">
+            <div class="view-header">
+              <h1>SERVIDORES MCP (MODEL CONTEXT PROTOCOL)</h1>
+              <p class="view-sub">Estado de servidores MCP integrados en OpenCode-Saghet.</p>
+            </div>
+            <div id="mcp-list" class="cards-grid"></div>
+          </section>
+
+          <!-- VISTA: CONFIGURACIÓN -->
+          <section id="view-settings" class="view">
+            <div class="view-header">
+              <h1>CONFIGURACIÓN VISUAL &amp; MATRIX PROTOCOL</h1>
+              <p class="view-sub">Personaliza tema, intensidad de lluvia Matrix, FPS y comportamiento de la interfaz.</p>
+            </div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>ANIMACIÓN MATRIX &amp; RENDIMIENTO</h2>
+                <div class="settings-form">
+                  <label class="setting-row">
+                    <span>Intensidad lluvia Matrix</span>
+                    <select id="cfg-matrix-intensity">
+                      <option value="off">Desactivada (0% CPU)</option>
+                      <option value="subtle">Sutil</option>
+                      <option value="balanced">Equilibrada (Recomendada)</option>
+                      <option value="prominent">Protagonista</option>
+                    </select>
+                  </label>
+                  <label class="setting-row">
+                    <span>Límite de FPS (Canvas 2D)</span>
+                    <select id="cfg-matrix-fps">
+                      <option value="15">15 FPS (Eco)</option>
+                      <option value="24">24 FPS (Cine / Óptimo)</option>
+                      <option value="30">30 FPS</option>
+                      <option value="60">60 FPS</option>
+                    </select>
+                  </label>
+                  <label class="setting-row">
+                    <span>Tema de interfaz</span>
+                    <select id="cfg-theme">
+                      <option value="dark">Saghet Matrix Dark (#030705)</option>
+                      <option value="light">Saghet Phosphor Light</option>
+                    </select>
+                  </label>
+                  <label class="setting-row">
+                    <span>Mostrar Panel Derecho (HUD)</span>
+                    <input type="checkbox" id="cfg-hud-visible" checked />
+                  </label>
+                </div>
+              </div>
+              <div class="card">
+                <h2>CONTRATO DE CONFIGURACIÓN ACTIVA</h2>
+                <div id="settings-summary" class="compact-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- VISTA: DIAGNÓSTICO -->
+          <section id="view-diagnostics" class="view">
+            <div class="view-header">
+              <div>
+                <h1>DIAGNÓSTICO DEL SISTEMA (DOCTOR)</h1>
+                <p class="view-sub">Ejecución en vivo de doctor.sh sobre Garuda Linux, GPU, Ollama y seguridad.</p>
+              </div>
+              <button id="run-doctor-btn" class="btn btn-primary">Ejecutar Diagnóstico</button>
+            </div>
+            <div class="card">
+              <pre id="diagnostics-output" class="code-block">Pulsa "Ejecutar Diagnóstico" para validar el estado completo del sistema...</pre>
+            </div>
+          </section>
+
+          <!-- VISTA: ACERCA DE SAGHET -->
+          <section id="view-about" class="view">
+            <div class="view-header">
+              <h1>ACERCA DE OPENCODE-SAGHET</h1>
+              <p class="view-sub">Distribución Local-First de desarrollo con IA — Identidad Matrix Protocol.</p>
+            </div>
+            <div class="card about-card">
+              <img src="/assets/matrix/saghet-logo.svg" alt="Saghet Logo" class="about-logo" />
+              <p>
+                <strong>OpenCode-Saghet // Matrix Protocol</strong> integra OpenCode v2.3.2, Ollama local,
+                13 agentes especializados, MCPs fijados y telemetría CUDA en tiempo real para hardware RTX 4060 (8 GB VRAM).
+              </p>
+              <div class="metrics-grid">
+                <div class="metric"><div class="metric-label">Motor Base</div><div class="metric-value">OpenCode v2.3.2</div></div>
+                <div class="metric"><div class="metric-label">SO Objetivo</div><div class="metric-value">Garuda / Arch Linux</div></div>
+                <div class="metric"><div class="metric-label">GPU Perfil</div><div class="metric-value">RTX 4060 8GB</div></div>
+                <div class="metric"><div class="metric-label">Regla VRAM</div><div class="metric-value">1 Modelo Activo</div></div>
+              </div>
+            </div>
+          </section>
+        </main>
+
+        <!-- D. PANEL DERECHO (TELEMETRÍA Y AGENTES) -->
+        <aside id="right-hud" class="right-hud" aria-label="Panel de telemetría y agentes">
+          <div class="hud-section">
+            <div class="hud-title">ESTADO DE AGENTES</div>
+            <div id="hud-agent-counts" class="hud-counts"></div>
+          </div>
+
+          <div class="hud-section">
+            <div class="hud-title">HARDWARE EN TIEMPO REAL</div>
+            <div id="hud-hw-bars" class="hud-bars"></div>
+          </div>
+
+          <div class="hud-section">
+            <div class="hud-title">MODELO EN VRAM &amp; OLLAMA</div>
+            <div id="hud-ollama-box" class="hud-box"></div>
+          </div>
+
+          <div class="hud-section">
+            <div class="hud-title">TAREAS DELEGADAS</div>
+            <div id="hud-delegations" class="hud-list"></div>
+          </div>
+
+          <div class="hud-section">
+            <div class="hud-title">ACTIVIDAD RECIENTE</div>
+            <div id="hud-activity" class="hud-list"></div>
+          </div>
+        </aside>
       </div>
-    </header>
+    </div>
 
-    <main class="grid">
-      <section class="card span-2">
-        <h2>Hardware, GPU CUDA y Ollama</h2>
-        <div id="hardware-metrics" class="metrics-row"></div>
-        <div id="ollama-running" class="subpanel"></div>
-      </section>
-
-      <section class="card">
-        <h2>Consumo de Tokens (Sesiones recientes)</h2>
-        <div id="token-metrics" class="metrics-row"></div>
-      </section>
-
-      <section class="card">
-        <h2>Plugins, MCP y Servicios</h2>
-        <div id="tools-status" class="list"></div>
-      </section>
-
-      <section class="card span-2">
-        <h2>Panel de Agentes</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Agente</th>
-                <th>Modo</th>
-                <th>Modelo</th>
-                <th>Permisos / Herramientas</th>
-              </tr>
-            </thead>
-            <tbody id="agents-body"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card span-2">
-        <h2>Tareas y Delegaciones</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Sesión</th>
-                <th>Agente</th>
-                <th>Delegado desde</th>
-                <th>Estado</th>
-                <th>Tokens (In/Out)</th>
-                <th>Directorio</th>
-              </tr>
-            </thead>
-            <tbody id="sessions-body"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card span-2">
-        <h2>Proveedores y Modelos</h2>
-        <div id="providers-list" class="providers-grid"></div>
-      </section>
-    </main>
-
+    <script src="/matrix-rain.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
