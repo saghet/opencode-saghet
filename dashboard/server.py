@@ -32,6 +32,7 @@ REPO_DIR = DASHBOARD_DIR.parent
 if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
+from scripts.eval.model_lab import SmartModelRouter, load_evaluation_matrix, run_live_model_probe
 from scripts.supervisor.gentle_ai_bridge import get_gentle_ai_status
 from scripts.supervisor.quality_supervisor import QualitySupervisor, get_decisions
 ASSETS_DIR = REPO_DIR / "assets"
@@ -917,6 +918,21 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
             )
             return
 
+        if parsed.path == "/api/models/evaluation":
+            router = SmartModelRouter()
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "matrix": router.matrix,
+                    "active_routes": {
+                        spec: router.route(spec, avoid_vram_swap=False)
+                        for spec in ("classification", "coding", "architecture", "independent_review", "security_audit")
+                    },
+                },
+            )
+            return
+
         if parsed.path == "/api/session/job":
             qs = urllib.parse.parse_qs(parsed.query)
             jid = (qs.get("id") or [""])[0].strip()
@@ -1306,6 +1322,46 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                 require_tests=body.get("require_tests"),
             )
             self._send_json(200, {"ok": True, "decision": decision})
+            return
+
+        if parsed.path == "/api/models/route":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            router = SmartModelRouter()
+            specialty = str(body.get("specialty") or "coding")
+            route_res = router.route(
+                specialty=specialty,
+                loaded_in_vram=body.get("loaded_in_vram"),
+                avoid_vram_swap=bool(body.get("avoid_vram_swap", True)),
+                allow_heavy_cpu_offload=bool(body.get("allow_heavy_cpu_offload", False)),
+                external_provider_available=bool(body.get("external_provider_available", False)),
+            )
+            cand = str(body.get("candidate_model") or "").strip()
+            if cand:
+                can_promo, promo_reason = router.can_promote_model(cand, specialty)
+                route_res["promotion_check"] = {"candidate": cand, "allowed": can_promo, "reason": promo_reason}
+            self._send_json(200, {"ok": True, "route": route_res})
+            return
+
+        if parsed.path == "/api/models/evaluate":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            model = str(body.get("model") or "qwen3.5:9b").strip()
+            if not is_valid_model(model):
+                self._send_json(400, {"ok": False, "error": f"Modelo inválido: {model}"})
+                return
+            probe = run_live_model_probe(model)
+            self._send_json(200, probe)
             return
 
         self.send_error(404)

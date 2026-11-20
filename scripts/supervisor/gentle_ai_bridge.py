@@ -10,6 +10,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from scripts.eval.model_lab import SmartModelRouter
+
 GENTLE_AI_BIN = (
     str(Path.home() / ".cargo" / "bin" / "gentle-ai")
     if (Path.home() / ".cargo" / "bin" / "gentle-ai").is_file()
@@ -202,11 +204,13 @@ def classify_and_route(objective: str, context_files: list[str] | None = None) -
     else:
         complexity = "medium"
 
-    # Seleccionar especialista principal, modelo y pipeline de verificación
+    # Seleccionar especialista principal, modelo y pipeline de verificación usando SmartModelRouter
     # Regla VRAM RTX 4060 (8 GB): minimizar cambios de modelo innecesarios (qwen3.5:9b residente).
+    smart_router = SmartModelRouter()
     if complexity == "low" and is_readonly:
         primary_specialist = "fast-helper"
-        selected_model = "ollama/qwen3.5:4b"
+        route_decision = smart_router.route("classification", avoid_vram_swap=False)
+        selected_model = route_decision["selected_model"]
         reviewers = []
         qa_required = False
         worktree_required = False
@@ -240,9 +244,14 @@ def classify_and_route(objective: str, context_files: list[str] | None = None) -
             primary_specialist = domain_to_agent.get(primary_Domain, "senior-developer")
 
         if primary_specialist in {"security-auditor", "platform-security-engineer"}:
-            selected_model = "ollama/abliterant/qwen3.5-rana:9b"
+            route_decision = smart_router.route("security_audit")
+        elif primary_specialist in {"architect", "integration-architect"}:
+            route_decision = smart_router.route("architecture")
+        elif primary_specialist == "code-reviewer":
+            route_decision = smart_router.route("independent_review")
         else:
-            selected_model = "ollama/qwen3.5:9b"
+            route_decision = smart_router.route("coding")
+        selected_model = route_decision["selected_model"]
 
         if is_readonly:
             reviewers = ["code-reviewer"] if complexity in {"high", "critical"} else []
@@ -292,6 +301,8 @@ def classify_and_route(objective: str, context_files: list[str] | None = None) -
         "is_readonly": is_readonly,
         "domains": domains,
         "selected_model": selected_model,
+        "fallback_chain": route_decision.get("fallback_chain", []),
+        "verifiable_model_score": route_decision.get("verifiable_score"),
         "primary_specialist": primary_specialist,
         "reviewers": reviewers,
         "qa_required": qa_required,
