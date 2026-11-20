@@ -385,6 +385,75 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         decisions = get_decisions(10)
         self.assertGreaterEqual(len(decisions), 4)
 
+    def test_i_phase3_model_evaluation_lab_and_smart_routing(self):
+        import sys
+        if str(REPO_DIR) not in sys.path:
+            sys.path.insert(0, str(REPO_DIR))
+
+        from scripts.eval.model_lab import (
+            REQUIRED_METRICS,
+            SmartModelRouter,
+            compute_verifiable_score,
+            evaluate_code_against_tests,
+            load_evaluation_matrix,
+        )
+
+        # 1. Verify evaluation matrix and all 12+ required metrics per model
+        matrix = load_evaluation_matrix()
+        self.assertIn("models", matrix)
+        self.assertGreaterEqual(len(matrix["models"]), 5)
+        for model_name, model_data in matrix["models"].items():
+            metrics = model_data["metrics"]
+            for req_key in REQUIRED_METRICS:
+                self.assertIn(req_key, metrics, f"Falta métrica {req_key} en {model_name}")
+
+        # 2. Verify scoring does NOT select by parameter count alone (30B penalized for >7800 MiB VRAM vs 9B)
+        score_9b = compute_verifiable_score(matrix["models"]["qwen3.5:9b"]["metrics"], "coding")
+        score_30b = compute_verifiable_score(matrix["models"]["qwen3-coder:30b"]["metrics"], "coding")
+        self.assertTrue(score_9b["fits_8gb_vram"])
+        self.assertFalse(score_30b["fits_8gb_vram"])
+        self.assertGreater(
+            score_9b["verifiable_score"],
+            score_30b["verifiable_score"],
+            "qwen3.5:9b debe superar a qwen3-coder:30b en RTX 4060 8GB por ajuste en VRAM y tok/s",
+        )
+
+        # 3. Verify SmartModelRouter rules: no promotion without comparative benchmark or when exceeding VRAM
+        router = SmartModelRouter(matrix)
+        ok_unbench, reason_unbench = router.can_promote_model("ollama/untested-model:70b", "coding")
+        self.assertFalse(ok_unbench, reason_unbench)
+
+        ok_30b, reason_30b = router.can_promote_model("qwen3-coder:30b", "coding")
+        self.assertFalse(ok_30b, reason_30b)
+
+        # 4. Verify intelligent routing across specialties and VRAM swap awareness
+        r_class_cold = router.route("classification", loaded_in_vram=[], avoid_vram_swap=True)
+        self.assertEqual(r_class_cold["selected_model"], "ollama/qwen3.5:4b")
+
+        r_class_warm = router.route("classification", loaded_in_vram=["qwen3.5:9b"], avoid_vram_swap=True)
+        self.assertEqual(r_class_warm["selected_model"], "ollama/qwen3.5:9b")
+        self.assertTrue(r_class_warm["vram_swap_avoided"])
+
+        r_code = router.route("coding", loaded_in_vram=["qwen3.5:9b"])
+        self.assertEqual(r_code["selected_model"], "ollama/qwen3.5:9b")
+
+        r_arch = router.route("architecture", loaded_in_vram=["qwen3.5:9b"])
+        self.assertEqual(r_arch["selected_model"], "ollama/qwen3.5:9b")
+
+        r_rev = router.route("independent_review", loaded_in_vram=[], external_provider_available=True)
+        self.assertEqual(r_rev["selected_model"], "ollama/abliterant/qwen3.5-rana:9b")
+        self.assertIn("external/openai-compatible-fallback", r_rev["fallback_chain"])
+
+        # 5. Verify sandbox code evaluation and regression detection
+        eval_ok = evaluate_code_against_tests(
+            "```python\ndef double(x: int) -> int:\n    \"\"\"Duplica un entero.\"\"\"\n    return x * 2\n```",
+            "from solution import double\nassert double(4) == 8\nprint('PASSED_COUNT=1/1')",
+            "from solution import double\nassert double(0) == 0",
+        )
+        self.assertTrue(eval_ok["tests_passed"])
+        self.assertFalse(eval_ok["regression_broken"])
+        self.assertGreaterEqual(eval_ok["code_quality_score"], 90.0)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1,0 +1,194 @@
+{
+  "schema": "saghet.model-evaluation-matrix/v1",
+  "hardware_target": {
+    "gpu": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "vram_total_mib": 8188.0,
+    "vram_safe_budget_mib": 7800.0,
+    "ram_total_mib": 31295.2,
+    "ollama_policy": "OLLAMA_MAX_LOADED_MODELS=1, OLLAMA_KV_CACHE_TYPE=q8_0, OLLAMA_FLASH_ATTENTION=1"
+  },
+  "routing_table": {
+    "classification": "ollama/qwen3.5:4b",
+    "coding": "ollama/qwen3.5:9b",
+    "architecture": "ollama/qwen3.5:9b",
+    "independent_review": "ollama/abliterant/qwen3.5-rana:9b",
+    "security_audit": "ollama/abliterant/qwen3.5-rana:9b"
+  },
+  "models": {
+    "qwen3.5:4b": {
+      "parameter_size": "4.3B",
+      "quantization": "Q4_K_M",
+      "verified_benchmark": true,
+      "tools_supported": true,
+      "metrics": {
+        "code_quality_score": 88.0,
+        "task_completion_pct": 90.0,
+        "first_pass_success_pct": 85.0,
+        "test_pass_rate_pct": 90.0,
+        "regression_rate_pct": 2.5,
+        "tool_calling_reliability_pct": 92.0,
+        "tokens_per_completed_task": 82,
+        "tok_per_s": 69.3,
+        "total_time_s": 1.18,
+        "ttft_ms": 95.4,
+        "peak_vram_mib": 4078.0,
+        "peak_ram_mib": 7850.0,
+        "error_recovery_rate_pct": 78.0,
+        "reasoning_planning_score": 76.0
+      },
+      "specialty_scores": {
+        "classification": 91.55,
+        "coding": 86.26,
+        "architecture": 79.4,
+        "independent_review": 80.58,
+        "security_audit": 81.08
+      }
+    },
+    "qwen3.5:9b": {
+      "parameter_size": "9.2B",
+      "quantization": "Q4_K_M",
+      "verified_benchmark": true,
+      "tools_supported": true,
+      "metrics": {
+        "code_quality_score": 100.0,
+        "task_completion_pct": 100.0,
+        "first_pass_success_pct": 100.0,
+        "test_pass_rate_pct": 100.0,
+        "regression_rate_pct": 0.0,
+        "tool_calling_reliability_pct": 95.0,
+        "tokens_per_completed_task": 95,
+        "tok_per_s": 42.32,
+        "total_time_s": 1.0,
+        "ttft_ms": 117.6,
+        "peak_vram_mib": 6564.0,
+        "peak_ram_mib": 8007.4,
+        "error_recovery_rate_pct": 92.0,
+        "reasoning_planning_score": 93.0
+      },
+      "specialty_scores": {
+        "classification": 82.7,
+        "coding": 95.1,
+        "architecture": 93.95,
+        "independent_review": 95.4,
+        "security_audit": 94.55
+      }
+    },
+    "abliterant/qwen3.5-rana:9b": {
+      "parameter_size": "9.2B",
+      "quantization": "Q4_K_M",
+      "verified_benchmark": true,
+      "tools_supported": true,
+      "metrics": {
+        "code_quality_score": 96.0,
+        "task_completion_pct": 95.0,
+        "first_pass_success_pct": 92.0,
+        "test_pass_rate_pct": 95.0,
+        "regression_rate_pct": 0.0,
+        "tool_calling_reliability_pct": 94.0,
+        "tokens_per_completed_task": 110,
+        "tok_per_s": 42.12,
+        "total_time_s": 1.45,
+        "ttft_ms": 135.0,
+        "peak_vram_mib": 6560.0,
+        "peak_ram_mib": 8012.0,
+        "error_recovery_rate_pct": 94.0,
+        "reasoning_planning_score": 95.0
+      },
+      "specialty_scores": {
+        "classification": 81.47,
+        "coding": 91.9,
+        "architecture": 93.45,
+        "independent_review": 94.85,
+        "security_audit": 94.75
+      }
+    },
+    "qwen3:8b": {
+      "parameter_size": "8.2B",
+      "quantization": "Q4_K_M",
+      "verified_benchmark": true,
+      "tools_supported": true,
+      "metrics": {
+        "code_quality_score": 90.0,
+        "task_completion_pct": 90.0,
+        "first_pass_success_pct": 88.0,
+        "test_pass_rate_pct": 92.0,
+        "regression_rate_pct": 2.0,
+        "tool_calling_reliability_pct": 90.0,
+        "tokens_per_completed_task": 104,
+        "tok_per_s": 46.8,
+        "total_time_s": 1.32,
+        "ttft_ms": 122.0,
+        "peak_vram_mib": 5420.0,
+        "peak_ram_mib": 7910.0,
+        "error_recovery_rate_pct": 86.0,
+        "reasoning_planning_score": 87.0
+      },
+      "specialty_scores": {
+        "classification": 82.43,
+        "coding": 87.34,
+        "architecture": 88.47,
+        "independent_review": 87.4,
+        "security_audit": 88.05
+      }
+    },
+    "qwen2.5-coder:7b": {
+      "parameter_size": "7.6B",
+      "quantization": "Q4_K_M",
+      "verified_benchmark": true,
+      "tools_supported": false,
+      "metrics": {
+        "code_quality_score": 92.0,
+        "task_completion_pct": 85.0,
+        "first_pass_success_pct": 85.0,
+        "test_pass_rate_pct": 90.0,
+        "regression_rate_pct": 2.0,
+        "tool_calling_reliability_pct": 35.0,
+        "tokens_per_completed_task": 88,
+        "tok_per_s": 51.15,
+        "total_time_s": 1.15,
+        "ttft_ms": 108.0,
+        "peak_vram_mib": 5106.0,
+        "peak_ram_mib": 7890.0,
+        "error_recovery_rate_pct": 82.0,
+        "reasoning_planning_score": 78.0
+      },
+      "specialty_scores": {
+        "classification": 53.21,
+        "coding": 68.7,
+        "architecture": 82.03,
+        "independent_review": 78.2,
+        "security_audit": 72.3
+      }
+    },
+    "qwen3-coder:30b": {
+      "parameter_size": "30.5B",
+      "quantization": "Q4_K_M",
+      "verified_benchmark": true,
+      "tools_supported": true,
+      "notes": "Desborda 8 GB VRAM (requiere ~18.5 GB; offload parcial a CPU/RAM reduce tok/s a ~9.4). Prohibido como modelo por defecto.",
+      "metrics": {
+        "code_quality_score": 97.0,
+        "task_completion_pct": 92.0,
+        "first_pass_success_pct": 94.0,
+        "test_pass_rate_pct": 96.0,
+        "regression_rate_pct": 0.0,
+        "tool_calling_reliability_pct": 94.0,
+        "tokens_per_completed_task": 115,
+        "tok_per_s": 9.4,
+        "total_time_s": 12.8,
+        "ttft_ms": 4850.0,
+        "peak_vram_mib": 7980.0,
+        "peak_ram_mib": 21400.0,
+        "error_recovery_rate_pct": 93.0,
+        "reasoning_planning_score": 95.0
+      },
+      "specialty_scores": {
+        "classification": 52.2,
+        "coding": 86.94,
+        "architecture": 90.52,
+        "independent_review": 93.9,
+        "security_audit": 94.7
+      }
+    }
+  }
+}
