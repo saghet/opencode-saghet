@@ -1,11 +1,11 @@
 {
   "storagePath": "__SAGHET_HOME__/.opencode-mem/data",
   "embeddingModel": "Xenova/nomic-embed-text-v1",
-  "autoCaptureEnabled": true,
+  "autoCaptureEnabled": false,
   "autoCaptureProviderOrder": "opencode-first",
   "opencodeProvider": "ollama",
   "opencodeModel": "qwen3.5:9b",
-  "opencodeTimeoutMs": 45000,
+  "opencodeTimeoutMs": 12000,
   "userProfileEnabled": true,
   "chatMessage": {
     "enabled": true,
@@ -14,5 +14,5 @@
   "webServerEnabled": true,
   "webServerHost": "127.0.0.1",
   "webServerPort": 4747,
-  "showErrorToasts": true
+  "showErrorToasts": false
 }

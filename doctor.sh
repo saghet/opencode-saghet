@@ -101,6 +101,12 @@ else
   err "opencode-mem no está alineado con qwen3.5:9b (riesgo de colisión VRAM)"
 fi
 
+if [ -f "${CFG_DIR}/opencode-mem.jsonc" ] && grep -q '"autoCaptureEnabled": false' "${CFG_DIR}/opencode-mem.jsonc"; then
+  ok "opencode-mem sin bloqueo StructuredOutput de 45s (autoCaptureEnabled: false)"
+else
+  warn "opencode-mem tiene autoCaptureEnabled: true (riesgo de timeout de 45s en StructuredOutput)"
+fi
+
 if [ -f "${CFG_DIR}/.saghet-dashboard-token" ]; then
   TOK_PERM="$(stat -c '%a' "${CFG_DIR}/.saghet-dashboard-token" 2>/dev/null || echo "")"
   if [ "$TOK_PERM" = "600" ]; then

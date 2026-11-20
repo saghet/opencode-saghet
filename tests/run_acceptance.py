@@ -145,6 +145,17 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             self.assertFalse(tools.get("edit", True))
             self.assertFalse(tools.get("bash", True))
 
+        # Verify all non-orchestrator agents have subagent: false to prevent recursion depth failures
+        for agent_name, agent_spec in cfg["agent"].items():
+            if agent_name == "saghet-orchestrator":
+                continue
+            self.assertFalse(
+                (agent_spec.get("tools") or {}).get("subagent", True),
+                f"El subagente '{agent_name}' debe tener subagent: false para evitar recursión",
+            )
+
+        self.assertEqual(cfg["permission"]["bash"].get("ollama run *"), "deny")
+
         self.assertEqual(cfg["permission"]["read"].get("**/.env"), "deny")
         self.assertEqual(cfg["permission"]["read"].get("service.json"), "deny")
         self.assertEqual(cfg["permission"]["bash"].get("git push --force*"), "deny")
@@ -172,6 +183,7 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
 
         mem_cfg = json.loads((CFG_DIR / "opencode-mem.jsonc").read_text(encoding="utf-8"))
         self.assertEqual(mem_cfg["opencodeModel"], "qwen3.5:9b", "opencode-mem debe usar qwen3.5:9b para evitar colisión VRAM")
+        self.assertFalse(mem_cfg["autoCaptureEnabled"], "opencode-mem autoCaptureEnabled debe ser false para evitar timeouts de 45s en StructuredOutput")
 
         with open(CFG_DIR / "opencode.json", encoding="utf-8") as f:
             oc_cfg = json.load(f)
