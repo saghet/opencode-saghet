@@ -33,10 +33,10 @@
     }
     #saghet-logo-matrix-wrap {
       position: fixed;
-      z-index: 9999;
+      z-index: 1;
       pointer-events: none;
       display: none;
-      filter: drop-shadow(0 0 6px rgba(0, 255, 102, 0.35));
+      filter: drop-shadow(0 0 3px rgba(0, 255, 102, 0.22));
     }
     #saghet-logo-matrix-canvas {
       width: 100%;
@@ -49,21 +49,29 @@
       -webkit-mask-position: center;
       mask-position: center;
     }
+    #saghet-logo-outline {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: visible;
+    }
     #saghet-edition-badge {
       position: fixed;
-      z-index: 10000;
+      z-index: 1;
       pointer-events: none;
       display: none;
       font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", "IBM Plex Mono", monospace;
       font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.14em;
-      color: #E5F5EA;
-      background: rgba(6, 77, 43, 0.9);
-      border: 1px solid #00FF66;
+      color: #D1FAE5;
+      background: rgba(8, 44, 27, 0.85);
+      border: 1px solid rgba(52, 211, 153, 0.55);
       border-radius: 4px;
       padding: 3px 9px;
-      box-shadow: 0 0 10px rgba(0, 255, 102, 0.28);
+      box-shadow: 0 0 6px rgba(0, 255, 102, 0.14);
       white-space: nowrap;
       user-select: none;
     }
@@ -82,13 +90,16 @@
   document.body.appendChild(canvas);
   const ctx = canvas.getContext("2d", { alpha: true });
 
-  // 2. Logo interior Matrix canvas + mask wrapper
+  // 2. Logo interior Matrix canvas + mask wrapper + crisp vector outline
   const logoWrap = document.createElement("div");
   logoWrap.id = "saghet-logo-matrix-wrap";
   logoWrap.setAttribute("aria-hidden", "true");
   const logoCanvas = document.createElement("canvas");
   logoCanvas.id = "saghet-logo-matrix-canvas";
   logoWrap.appendChild(logoCanvas);
+  const logoOutlineSlot = document.createElement("div");
+  logoOutlineSlot.id = "saghet-logo-outline";
+  logoWrap.appendChild(logoOutlineSlot);
   document.body.appendChild(logoWrap);
   const logoCtx = logoCanvas.getContext("2d", { alpha: true });
 
@@ -150,11 +161,40 @@
     return null;
   }
 
+  function isForegroundGlyphEl(el) {
+    const cs = window.getComputedStyle(el);
+    if (!cs || cs.display === "none" || cs.visibility === "hidden") return false;
+    const fill = cs.fill;
+    if (!fill || fill === "none" || fill === "transparent") return false;
+    const match = fill.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)/i);
+    if (!match) return true;
+    const r = Number(match[1]);
+    const g = Number(match[2]);
+    const b = Number(match[3]);
+    const a = match[4] !== undefined ? Number(match[4]) : 1;
+    const fillOp = parseFloat(cs.fillOpacity || "1");
+    const op = parseFloat(cs.opacity || "1");
+    const effectiveAlpha = a * fillOp * op;
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    // Exclude dark/semi-transparent tile boxes ("cuadros") so they match the app background
+    return effectiveAlpha >= 0.35 && lum * effectiveAlpha >= 0.25;
+  }
+
   function buildSvgMaskUrl(svg) {
+    const origEls = svg.querySelectorAll("path, rect, polygon, circle, ellipse, g");
     const clone = svg.cloneNode(true);
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    clone.querySelectorAll("path, rect, polygon, circle, ellipse, g").forEach((el) => {
-      if (el.getAttribute("fill") !== "none") {
+    const cloneEls = clone.querySelectorAll("path, rect, polygon, circle, ellipse, g");
+    cloneEls.forEach((el, idx) => {
+      if (el.tagName.toLowerCase() === "g") {
+        el.removeAttribute("opacity");
+        return;
+      }
+      const orig = origEls[idx];
+      if (orig && !isForegroundGlyphEl(orig)) {
+        el.setAttribute("fill", "none");
+        el.setAttribute("stroke", "none");
+      } else if (el.getAttribute("fill") !== "none") {
         el.setAttribute("fill", "#ffffff");
       }
       el.removeAttribute("fill-opacity");
@@ -164,21 +204,60 @@
     return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(serialized)}")`;
   }
 
+  function buildSvgOutlineEl(svg) {
+    const origEls = svg.querySelectorAll("path, rect, polygon, circle, ellipse, polyline, line");
+    const clone = svg.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.removeAttribute("class");
+    clone.removeAttribute("style");
+    clone.setAttribute("width", "100%");
+    clone.setAttribute("height", "100%");
+    clone.setAttribute("preserveAspectRatio", "none");
+    clone.style.display = "block";
+    clone.style.width = "100%";
+    clone.style.height = "100%";
+    const cloneEls = clone.querySelectorAll("path, rect, polygon, circle, ellipse, polyline, line");
+    cloneEls.forEach((el, idx) => {
+      const orig = origEls[idx];
+      if (orig && !isForegroundGlyphEl(orig)) {
+        el.setAttribute("fill", "none");
+        el.setAttribute("stroke", "none");
+        return;
+      }
+      if (el.getAttribute("fill") !== "none") {
+        el.setAttribute("fill", "none");
+      }
+      el.setAttribute("stroke", "#4ADE80");
+      el.setAttribute("stroke-width", "1.35");
+      el.setAttribute("stroke-opacity", "0.92");
+      el.setAttribute("vector-effect", "non-scaling-stroke");
+      el.removeAttribute("opacity");
+    });
+    return clone;
+  }
+
+  function hideLogoOverlay() {
+    logoVisible = false;
+    logoWrap.style.display = "none";
+    badge.style.display = "none";
+    if (currentLogoSvg) {
+      currentLogoSvg.style.opacity = "";
+    }
+  }
+
+  function hasOpenPopup() {
+    return Boolean(document.querySelector('[role="dialog"], [role="listbox"], [role="menu"]'));
+  }
+
   function syncLogoOverlay() {
-    if (document.documentElement.dataset.colorScheme === "light") {
-      logoVisible = false;
-      logoWrap.style.display = "none";
-      badge.style.display = "none";
+    if (document.documentElement.dataset.colorScheme === "light" || hasOpenPopup()) {
+      hideLogoOverlay();
       return;
     }
 
     const found = findOpencodeLogoSvg();
     if (!found) {
-      if (logoVisible) {
-        logoVisible = false;
-        logoWrap.style.display = "none";
-        badge.style.display = "none";
-      }
+      hideLogoOverlay();
       currentLogoSvg = null;
       return;
     }
@@ -187,24 +266,30 @@
     logoVisible = true;
 
     if (svg !== currentLogoSvg) {
+      if (currentLogoSvg) currentLogoSvg.style.opacity = "";
       currentLogoSvg = svg;
       const maskUrl = buildSvgMaskUrl(svg);
       logoCanvas.style.webkitMaskImage = maskUrl;
       logoCanvas.style.maskImage = maskUrl;
+      logoOutlineSlot.replaceChildren(buildSvgOutlineEl(svg));
     }
+    currentLogoSvg.style.opacity = "0";
 
     const rw = Math.round(rect.width);
     const rh = Math.round(rect.height);
+    const topY = Math.min(Math.round(rect.top), 74);
+    const leftX = Math.round(rect.left);
+
     logoWrap.style.display = "block";
-    logoWrap.style.left = `${Math.round(rect.left)}px`;
-    logoWrap.style.top = `${Math.round(rect.top)}px`;
+    logoWrap.style.left = `${leftX}px`;
+    logoWrap.style.top = `${topY}px`;
     logoWrap.style.width = `${rw}px`;
     logoWrap.style.height = `${rh}px`;
 
-    // Place SAGHET EDITION badge at the bottom-right corner next to the logo
+    // Place SAGHET EDITION badge at the bottom-right corner next to the elevated logo
     badge.style.display = "block";
-    badge.style.left = `${Math.round(rect.right + 10)}px`;
-    badge.style.top = `${Math.round(rect.bottom - 20)}px`;
+    badge.style.left = `${Math.round(leftX + rw + 12)}px`;
+    badge.style.top = `${Math.round(topY + rh - 21)}px`;
 
     if (rw !== logoW || rh !== logoH) {
       logoW = rw;
@@ -214,17 +299,17 @@
       logoCanvas.height = Math.max(1, Math.floor(rh * dpr));
       logoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      const step = 9;
+      const step = 11;
       const cnt = Math.max(1, Math.ceil(rw / step));
       logoCols = [];
       for (let i = 0; i < cnt; i++) {
         logoCols.push({
           x: i * step + 1,
           y: Math.random() * rh,
-          speed: 1.2 + Math.random() * 1.8,
+          speed: 0.65 + Math.random() * 0.85,
         });
       }
-      logoCtx.fillStyle = "#042615";
+      logoCtx.fillStyle = "#0F4D30";
       logoCtx.fillRect(0, 0, rw, rh);
     }
   }
@@ -283,22 +368,23 @@
 
   function drawLogoRain() {
     if (!logoVisible || logoW <= 0 || logoH <= 0) return;
-    logoCtx.fillStyle = "rgba(4, 30, 17, 0.24)";
+    // Solid emerald-jade body keeps letterforms readable against dark background
+    logoCtx.fillStyle = "rgba(13, 68, 42, 0.28)";
     logoCtx.fillRect(0, 0, logoW, logoH);
 
-    logoCtx.font = 'bold 10px "JetBrainsMono Nerd Font", "JetBrains Mono", monospace';
+    logoCtx.font = '600 8px "JetBrainsMono Nerd Font", "JetBrains Mono", monospace';
     for (let i = 0; i < logoCols.length; i++) {
       const c = logoCols[i];
       const ch = GLYPHS[(Math.random() * GLYPHS.length) | 0];
-      logoCtx.fillStyle = "#E5F5EA";
+      logoCtx.fillStyle = "rgba(209, 250, 229, 0.34)";
       logoCtx.fillText(ch, c.x, c.y);
 
       const prev = GLYPHS[(Math.random() * GLYPHS.length) | 0];
-      logoCtx.fillStyle = "#00FF66";
-      logoCtx.fillText(prev, c.x, c.y - 10);
+      logoCtx.fillStyle = "rgba(52, 211, 153, 0.24)";
+      logoCtx.fillText(prev, c.x, c.y - 9);
 
-      c.y += c.speed * 3.2;
-      if (c.y > logoH + 12 && Math.random() > 0.85) {
+      c.y += c.speed * 2.4;
+      if (c.y > logoH + 10 && Math.random() > 0.88) {
         c.y = 0;
       }
     }

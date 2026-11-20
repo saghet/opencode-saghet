@@ -644,7 +644,10 @@
       "name": "Ollama",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
-        "baseURL": "http://localhost:11434/v1"
+        "baseURL": "http://127.0.0.1:11434/v1",
+        "timeout": false,
+        "headerTimeout": false,
+        "chunkTimeout": 900000
       },
       "models": {
         "qwen3.5:4b": {
