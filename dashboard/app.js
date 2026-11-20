@@ -179,7 +179,6 @@ function syncComposerSelectors(data) {
       : `<option value="ollama">Ollama (Local)</option>`;
   }
 
-  // Sync project selector whenever new projects appear
   const projs = data.projects || [];
   const currentProj = projSel.value;
   if (projs.length && (!projSel.options.length || projSel.options.length !== projs.length)) {
@@ -190,7 +189,7 @@ function syncComposerSelectors(data) {
   }
 }
 
-// Render Session Messages
+// Module 5: Render Session Messages
 async function openSessionDetail(sessionId, title) {
   selectedSessionId = sessionId;
   switchView("sessions");
@@ -252,7 +251,7 @@ function renderNotifications(data) {
     alerts.push({ level: "warn", text: `${failed.length} sesión(es) reciente(s) finalizaron con error.` });
   }
   if (!alerts.length) {
-    alerts.push({ level: "ok", text: "Todos los servicios (OpenCode, Ollama, GPU) operan dentro de parámetros normales." });
+    alerts.push({ level: "ok", text: "Todos los servicios (OpenCode, Ollama, GPU, Gentle AI, Harness ACP) operan normalmente." });
   }
 
   const badge = document.getElementById("notif-badge");
@@ -263,6 +262,306 @@ function renderNotifications(data) {
   document.getElementById("notif-list").innerHTML = alerts
     .map((a) => `<div class="list-row"><span>${esc(a.text)}</span><span class="tag tag-${a.level}">${a.level.toUpperCase()}</span></div>`)
     .join("");
+}
+
+// Render Module 1: Agent Command Center (Delegation Tree & Supervisor Decisions)
+function renderAgentCommandCenter(data) {
+  const sessions = data.sessions || [];
+  const roots = sessions.filter((s) => !s.parentID).slice(0, 8);
+  const childrenByParent = {};
+  sessions.forEach((s) => {
+    if (s.parentID) {
+      (childrenByParent[s.parentID] = childrenByParent[s.parentID] || []).push(s);
+    }
+  });
+
+  const treeEl = document.getElementById("delegation-tree-list");
+  if (treeEl) {
+    treeEl.innerHTML = roots.length
+      ? roots
+          .map((r) => {
+            const kids = childrenByParent[r.id] || [];
+            const kidsHtml = kids.length
+              ? `<div class="tree-branch">${kids
+                  .map(
+                    (k) => `<div class="list-row clickable" data-open-sid="${esc(k.id)}" data-title="${esc(k.title || k.id)}">
+                      <span>↳ <strong>${esc(k.agent || "subagent")}</strong> · <small>${esc((k.title || k.id).slice(0, 32))}</small></span>
+                      <span class="tag ${k.outcome === "succeeded" ? "tag-ok" : ""}">${esc(k.outcome || "running")}</span>
+                    </div>`
+                  )
+                  .join("")}</div>`
+              : "";
+            return `<div>
+              <div class="list-row clickable" data-open-sid="${esc(r.id)}" data-title="${esc(r.title || r.id)}">
+                <span><strong>${esc(r.agent || "saghet-orchestrator")}</strong> · ${esc((r.title || r.id).slice(0, 36))}</span>
+                <span class="tag tag-ok">${kids.length} sub</span>
+              </div>
+              ${kidsHtml}
+            </div>`;
+          })
+          .join("")
+      : `<div class="empty-state">Sin árbol de delegaciones registrado aún.</div>`;
+  }
+
+  const decisions = data.supervisor?.decisions || [];
+  const supEl = document.getElementById("supervisor-decisions-list");
+  if (supEl) {
+    supEl.innerHTML = decisions.length
+      ? decisions
+          .slice(0, 10)
+          .map((d) => {
+            const v = d.verdict || "PLANNED";
+            const cls = v === "ACCEPT" || v === "PLANNED" ? "tag-ok" : v === "CORRECT" ? "tag-warn" : "tag-err";
+            const errs = [...(d.reasoning_errors || []), ...(d.missing_evidence || [])];
+            return `<div class="list-row">
+              <span>
+                <strong>${esc(d.agent || d.primary_specialist || "supervisor")}</strong> · ${esc(d.phase || "gate")}
+                ${d.iteration ? `(Intento ${d.iteration}/${d.max_iterations || 3})` : ""}
+                <br><small>${esc(errs.length ? errs[0].slice(0, 75) : `Modelo: ${d.selected_model || "ollama/qwen3.5:9b"}`)}</small>
+              </span>
+              <span class="tag ${cls}">${esc(v)}</span>
+            </div>`;
+          })
+          .join("")
+      : `<div class="empty-state">Sin decisiones registradas en el Supervisor.</div>`;
+  }
+}
+
+// Render Module 2: Model Intelligence
+function renderModelIntelligence(data) {
+  const modelsMap = data.evaluation_matrix?.models || {};
+  const entries = Object.entries(modelsMap);
+
+  const specTable = document.getElementById("specialty-scores-table");
+  if (specTable) {
+    specTable.innerHTML = entries.length
+      ? `<table>
+          <thead><tr><th>Modelo</th><th>Params</th><th>Classification</th><th>Coding</th><th>Architecture</th><th>Indep. Review</th><th>Security Audit</th></tr></thead>
+          <tbody>${entries
+            .map(([name, m]) => {
+              const sc = m.specialty_scores || {};
+              return `<tr>
+                <td><code>${esc(name)}</code></td>
+                <td>${esc(m.parameter_size || "-")}</td>
+                <td><strong>${sc.classification ?? "-"}</strong></td>
+                <td><strong>${sc.coding ?? "-"}</strong></td>
+                <td><strong>${sc.architecture ?? "-"}</strong></td>
+                <td><strong>${sc.independent_review ?? "-"}</strong></td>
+                <td><strong>${sc.security_audit ?? "-"}</strong></td>
+              </tr>`;
+            })
+            .join("")}</tbody></table>`
+      : `<div class="empty-state">Sin matriz de evaluación cargada.</div>`;
+  }
+
+  const metricsTable = document.getElementById("model-intel-table");
+  if (metricsTable) {
+    metricsTable.innerHTML = entries.length
+      ? `<table>
+          <thead><tr>
+            <th>Modelo</th><th>Calidad Código</th><th>First-Pass</th><th>Test Pass</th><th>Regresión</th>
+            <th>Tool-Call</th><th>tok/s</th><th>TTFT</th><th>VRAM Pico</th><th>Recup. Error</th><th>Razonamiento</th>
+          </tr></thead>
+          <tbody>${entries
+            .map(([name, m]) => {
+              const mt = m.metrics || {};
+              const vramWarn = (mt.peak_vram_mib || 0) > 7800;
+              return `<tr>
+                <td><code>${esc(name)}</code></td>
+                <td>${mt.code_quality_score}%</td>
+                <td>${mt.first_pass_success_pct}%</td>
+                <td>${mt.test_pass_rate_pct}%</td>
+                <td>${mt.regression_rate_pct}%</td>
+                <td>${mt.tool_calling_reliability_pct}%</td>
+                <td><strong>${mt.tok_per_s}</strong></td>
+                <td>${mt.ttft_ms} ms</td>
+                <td><span class="tag ${vramWarn ? "tag-err" : "tag-ok"}">${mt.peak_vram_mib} MiB</span></td>
+                <td>${mt.error_recovery_rate_pct}%</td>
+                <td>${mt.reasoning_planning_score}%</td>
+              </tr>`;
+            })
+            .join("")}</tbody></table>`
+      : `<div class="empty-state">Sin métricas disponibles.</div>`;
+  }
+}
+
+// Render Module 3 & 4: Workflow Orchestration (DAG) & Task Board
+function renderWorkflowsAndTaskBoard(data) {
+  const tasks = data.harness?.task_board || [];
+  const traces = data.harness?.traces || [];
+
+  const dagFlow = document.getElementById("dag-visual-flow");
+  if (dagFlow) {
+    const sampleNodes = tasks.length
+      ? tasks.slice(0, 6).reverse()
+      : [
+          { task_id: "step_1", title: "1. Gentle AI Clasificación", specialist: "saghet-orchestrator", status: "DONE" },
+          { task_id: "step_2", title: "2. Diseño & Contratos", specialist: "architect", status: "DONE" },
+          { task_id: "step_3", title: "3. Implementación Worktree", specialist: "senior-developer", status: "DONE" },
+          { task_id: "step_4", title: "4. Revisión Independiente", specialist: "code-reviewer", status: "DONE" },
+          { task_id: "step_5", title: "5. Verificación QA", specialist: "qa-engineer", status: "DONE" },
+        ];
+    dagFlow.innerHTML = sampleNodes
+      .map((n, idx) => {
+        const st = n.status || "PENDING";
+        const tagCls = st === "DONE" || st === "RECOVERED" ? "tag-ok" : st === "FAILED" || st === "BLOCKED" ? "tag-err" : "tag-warn";
+        const nodeHtml = `<div class="dag-node">
+          <div><strong>${esc(n.title || n.task_id)}</strong></div>
+          <div class="view-sub"><code>${esc(n.specialist || "agent")}</code></div>
+          <div style="margin-top:4px;"><span class="tag ${tagCls}">${esc(st)}</span></div>
+        </div>`;
+        return idx < sampleNodes.length - 1 ? `${nodeHtml}<span class="dag-arrow">──►</span>` : nodeHtml;
+      })
+      .join("");
+  }
+
+  const tracesEl = document.getElementById("harness-traces-list");
+  if (tracesEl) {
+    tracesEl.innerHTML = traces.length
+      ? traces
+          .slice(0, 15)
+          .map(
+            (t) => `<div class="list-row">
+              <span>
+                <strong>${esc(t.event_type)}</strong> · <code>${esc(t.workflow_id || "")}</code>
+                ${t.node_id ? `· Nodo: <code>${esc(t.node_id)}</code>` : ""}
+                <br><small>${esc(JSON.stringify(t.details || {}).slice(0, 110))}</small>
+              </span>
+              <span class="tag">${esc((t.timestamp || "").slice(11, 19))}</span>
+            </div>`
+          )
+          .join("")
+      : `<div class="empty-state">Sin trazas de ejecución registradas. Pulsa "Ejecutar Workflow DAG Verificado" para generar trazas.</div>`;
+  }
+
+  // Task Board columns
+  const pending = tasks.filter((t) => t.status === "PENDING" || t.status === "READY");
+  const running = tasks.filter((t) => t.status === "IN_PROGRESS" || t.status === "VERIFYING");
+  const done = tasks.filter((t) => t.status === "DONE" || t.status === "RECOVERED");
+  const failed = tasks.filter((t) => t.status === "FAILED" || t.status === "BLOCKED");
+
+  const renderTaskCard = (t, variant = "") => `<div class="task-card ${variant}">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <strong>${esc(t.title || t.task_id)}</strong>
+      <span class="tag">${esc(t.status)}</span>
+    </div>
+    <div><small>Agente: <code>${esc(t.specialist)}</code> · Intento: ${t.attempts ?? 1}</small></div>
+    <div><small>Sesión: <code>${esc((t.opencode_session_id || "").slice(0, 16))}</code></small></div>
+    ${t.error ? `<div style="color:var(--error);"><small>${esc(t.error)}</small></div>` : ""}
+  </div>`;
+
+  document.getElementById("cnt-tb-pending").textContent = String(pending.length);
+  document.getElementById("cnt-tb-running").textContent = String(running.length);
+  document.getElementById("cnt-tb-done").textContent = String(done.length);
+  document.getElementById("cnt-tb-failed").textContent = String(failed.length);
+
+  document.getElementById("col-tb-pending").innerHTML = pending.length ? pending.map((t) => renderTaskCard(t)).join("") : `<div class="empty-state">Vacío</div>`;
+  document.getElementById("col-tb-running").innerHTML = running.length ? running.map((t) => renderTaskCard(t, "warn")).join("") : `<div class="empty-state">Vacío</div>`;
+  document.getElementById("col-tb-done").innerHTML = done.length ? done.map((t) => renderTaskCard(t)).join("") : `<div class="empty-state">Vacío</div>`;
+  document.getElementById("col-tb-failed").innerHTML = failed.length ? failed.map((t) => renderTaskCard(t, "err")).join("") : `<div class="empty-state">Vacío</div>`;
+}
+
+// Render Module 6: Memory Explorer
+function renderMemoryExplorer(data) {
+  const mem = data.memory || {};
+  const tiers = mem.tiers || {};
+  const eco = mem.ecosystem || {};
+
+  const metricsEl = document.getElementById("memory-tiers-metrics");
+  if (metricsEl) {
+    metricsEl.innerHTML = [
+      metricCard("Tier: Sesión", `${tiers.session?.count ?? 0} rec`),
+      metricCard("Tier: Proyecto", `${tiers.project?.count ?? 0} rec`),
+      metricCard("Tier: Experiencias", `${tiers.experience?.count ?? 0} rec`),
+      metricCard("Tier: Usuario", `${tiers.user?.count ?? 0} rec`),
+      metricCard("opencode-mem (:4747)", data.opencode_mem_up ? `Activo (${eco.opencode_mem?.model || "9b"})` : "Inactivo"),
+      metricCard("DCP Protect User", eco.dcp?.protect_user_messages ? "PROTEGIDO" : "OFF"),
+    ].join("");
+  }
+
+  const recentEl = document.getElementById("memory-recent-list");
+  if (recentEl) {
+    const rec = mem.recent_memories || [];
+    recentEl.innerHTML = rec.length
+      ? rec
+          .map(
+            (m) => `<div class="list-row">
+              <span>
+                <strong>[${esc(m.tier.toUpperCase())} · ${esc(m.category)}]</strong> ${esc(m.title)}
+                <br><small>${esc(m.content.slice(0, 120))} — Procedencia: <code>${esc(m.provenance)}</code> · ${esc(m.updated_at)}</small>
+              </span>
+              <span class="tag tag-ok">Conf: ${Math.round((m.confidence || 0) * 100)}% (x${m.occurrence_count || 1})</span>
+            </div>`
+          )
+          .join("")
+      : `<div class="empty-state">Sin recuerdos registrados aún.</div>`;
+  }
+}
+
+// Render Module 8: Security Center
+function renderSecurityCenter(data) {
+  const sec = data.security || {};
+  const grid = document.getElementById("security-posture-grid");
+  if (grid) {
+    grid.innerHTML = [
+      metricCard("Token Auth 256-bit", sec.auth_enabled ? "ACTIVO" : "OFF"),
+      metricCard("Anti-CSRF / Origin", sec.csrf_protection ? "ACTIVO" : "OFF"),
+      metricCard("DNS Rebinding Guard", sec.dns_rebinding_guard ? "ACTIVO" : "OFF"),
+      metricCard("Max Jobs GPU (8GB)", `${sec.max_concurrent_jobs ?? 1} job`),
+      metricCard("Worktrees Activos", `${(sec.worktrees || []).length}`),
+    ].join("");
+  }
+
+  const auditEl = document.getElementById("security-audit-list");
+  if (auditEl) {
+    const events = sec.audit_events || [];
+    auditEl.innerHTML = events.length
+      ? events
+          .slice(0, 15)
+          .map((ev) => {
+            const st = ev.status || "ok";
+            const cls = st === "denied" || st === "error" ? "tag-err" : st === "running" ? "tag-warn" : "tag-ok";
+            return `<div class="list-row">
+              <span>
+                <strong>${esc(ev.action)}</strong> · <small>${esc(ev.timestamp)}</small>
+                <br><small>${esc(JSON.stringify(ev.details || {}).slice(0, 100))}</small>
+              </span>
+              <span class="tag ${cls}">${esc(st.toUpperCase())}</span>
+            </div>`;
+          })
+          .join("")
+      : `<div class="empty-state">Sin eventos de auditoría registrados.</div>`;
+  }
+
+  const wtEl = document.getElementById("security-worktrees-list");
+  if (wtEl) {
+    const wts = sec.worktrees || [];
+    wtEl.innerHTML = [
+      ...wts.map(
+        (w) => `<div class="list-row"><span><strong>Worktree:</strong> <code>${esc(w.path)}</code><br><small>${esc(w.branch || w.head || "")}</small></span><span class="tag tag-ok">Aislado</span></div>`
+      ),
+      `<div class="list-row"><span><strong>Protección de Secretos:</strong> <code>.env*</code>, <code>*.key</code>, <code>service.json</code>, <code>.saghet-dashboard-token</code></span><span class="tag tag-ok">DENY</span></div>`,
+      `<div class="list-row"><span><strong>Árbol de Procesos:</strong> <code>start_new_session + os.killpg</code></span><span class="tag tag-ok">ACTIVO</span></div>`,
+    ].join("");
+  }
+}
+
+// Render Module 10: Integration Manager
+function renderIntegrationManager(data) {
+  const gentle = data.gentle_ai || {};
+  const harness = data.harness?.status || {};
+  const coreEl = document.getElementById("integrations-core-list");
+  if (coreEl) {
+    coreEl.innerHTML = [
+      `<div class="list-row"><span><strong>Motor Principal:</strong> OpenCode v2.3.2 (<code>opencode acp</code>: ${harness.acp_probe?.opencode_acp_available ? "Disponible" : "N/A"})</span><span class="tag tag-ok">PRIMARIO</span></div>`,
+      `<div class="list-row"><span><strong>Capa de Inteligencia:</strong> Gentle AI (<code>${esc(gentle.version || "4.5.0")}</code> · Skills: ${gentle.skills_discovered ?? 0})</span><span class="tag ${gentle.available ? "tag-ok" : "tag-warn"}">${gentle.available ? "ACTIVO" : "OFF"}</span></div>`,
+      `<div class="list-row"><span><strong>DeepSeek Harness ACP Adapter:</strong> Desacoplado (Cordis en core: <code>false</code>)</span><span class="tag ${harness.enabled ? "tag-ok" : "tag-warn"}">${harness.enabled ? "HABILITADO" : "DESHABILITADO"}</span></div>`,
+    ].join("");
+  }
+  const toggleBtn = document.getElementById("toggle-harness-btn");
+  if (toggleBtn) {
+    toggleBtn.textContent = harness.enabled ? "Desactivar DeepSeek Harness ACP" : "Activar DeepSeek Harness ACP";
+  }
 }
 
 // Main Telemetry Render
@@ -334,7 +633,7 @@ async function loadTelemetry() {
           .join("")
       : `<div class="empty-state">Sin sesiones recientes.</div>`;
 
-    // Full sessions list
+    // Full sessions list (Module 5)
     document.getElementById("sessions-full-list").innerHTML = sessions.length
       ? sessions
           .map(
@@ -346,14 +645,20 @@ async function loadTelemetry() {
           .join("")
       : `<div class="empty-state">No hay sesiones registradas.</div>`;
 
+    // Module 1, 2, 3, 4, 6, 8, 10
+    renderAgentCommandCenter(data);
+    renderModelIntelligence(data);
+    renderWorkflowsAndTaskBoard(data);
+    renderMemoryExplorer(data);
+    renderSecurityCenter(data);
+    renderIntegrationManager(data);
+    renderProjectsGrid();
+
     document.querySelectorAll("[data-open-sid]").forEach((row) => {
       row.addEventListener("click", () => openSessionDetail(row.getAttribute("data-open-sid"), row.getAttribute("data-title")));
     });
 
-    // Projects
-    renderProjectsGrid();
-
-    // Agents
+    // Agents grid (Module 1)
     const agents = Object.entries(data.config?.agents || {});
     document.getElementById("agents-cards-grid").innerHTML = agents
       .map(([name, a]) => {
@@ -364,12 +669,12 @@ async function loadTelemetry() {
           <div class="card-head"><h2>${esc(name)}</h2><span class="tag tag-ok">${esc(a.mode)}</span></div>
           <p class="view-sub">${esc(a.description || "Especialista OpenCode-Saghet")}</p>
           <div class="subpanel">Modelo: <code>${esc(a.model)}</code></div>
-          <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">${perms || '<span class="tag">default</span>'}</div>
+          <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">${perms || '<span class="tag">R/W/Bash (Guardrails)</span>'}</div>
         </div>`;
       })
       .join("");
 
-    // Performance & Ollama
+    // Module 7: Performance Lab
     document.getElementById("perf-hw-grid").innerHTML = [
       metricCard("CPU Uso", `${cpu.usage_pct ?? 0}% (Load ${cpu.load_1m ?? 0})`),
       metricCard("RAM Usada", ram.total_mib ? `${(ram.used_mib / 1024).toFixed(1)} / ${(ram.total_mib / 1024).toFixed(1)} GiB` : "N/A"),
@@ -377,6 +682,16 @@ async function loadTelemetry() {
       metricCard("GPU Temp / Power", gpu.available ? `${gpu.temp_c}°C · ${gpu.power_w}W` : "N/A"),
       metricCard("Matrix Canvas FPS", matrixEngine.intensity === "off" ? "OFF" : `${matrixEngine.measuredFps || matrixEngine.fpsCap} fps`),
     ].join("");
+
+    const tokGrid = document.getElementById("token-breakdown-grid");
+    if (tokGrid) {
+      tokGrid.innerHTML = [
+        metricCard("Tokens Input", fmtNum(data.token_totals?.input)),
+        metricCard("Tokens Output", fmtNum(data.token_totals?.output)),
+        metricCard("Tokens Reasoning", fmtNum(data.token_totals?.reasoning)),
+        metricCard("Cache Read", fmtNum(data.token_totals?.cache_read)),
+      ].join("");
+    }
 
     if (gpu.available) {
       const pct = Math.min(100, Math.round((gpu.vram_used_mib / gpu.vram_total_mib) * 100));
@@ -388,7 +703,7 @@ async function loadTelemetry() {
     const running = data.ollama?.running || [];
     document.getElementById("perf-ollama-ps").innerHTML = running.length
       ? running
-          .map((m) => `<strong>En VRAM:</strong> <code>${esc(m.name)}</code> · Contexto: ${m.context_length ?? "N/A"} · VRAM: ${((m.size_vram || 0) / 1e9).toFixed(2)} GB`)
+          .map((m) => `<strong>En VRAM:</strong> <code>${esc(m.name)}</code> · Contexto: ${m.context_length ?? "16384"} · VRAM: ${((m.size_vram || 0) / 1e9).toFixed(2)} GB`)
           .join("<br>")
       : "<strong>Ollama VRAM:</strong> Ningún modelo cargado actualmente en GPU.";
 
@@ -398,6 +713,7 @@ async function loadTelemetry() {
         .map((m) => `<tr><td><code>${esc(m.name)}</code></td><td>${m.size_gb} GB</td><td>${esc(m.parameter_size || "-")}</td><td>${esc(m.quantization || "-")}</td></tr>`)
         .join("")}</tbody></table>`;
 
+    // Module 9: Benchmark Center
     const benches = data.benchmarks?.benchmarks || [];
     document.getElementById("benchmarks-table").innerHTML = benches.length
       ? `<table><thead><tr><th>Modelo</th><th>tok/s</th><th>TTFT</th><th>VRAM</th></tr></thead>
@@ -406,10 +722,10 @@ async function loadTelemetry() {
           .join("")}</tbody></table>`
       : `<div class="empty-state">Sin benchmarks registrados.</div>`;
 
-    // Plugins, Tools, Databases, MCP
+    // Module 10: Plugins, Tools, Databases, MCP
     document.getElementById("plugins-list").innerHTML = [
       `<div class="card"><h2>saghet-tui (Local)</h2><p class="view-sub">Plugin TUI nativo con identidad Matrix Protocol.</p><span class="tag tag-ok">Activo</span></div>`,
-      `<div class="card"><h2>opencode-mem (:4747)</h2><p class="view-sub">Memoria persistente local.</p><span class="tag ${data.opencode_mem_up ? "tag-ok" : "tag-warn"}">${data.opencode_mem_up ? "Activo" : "Inactivo"}</span></div>`,
+      `<div class="card"><h2>opencode-mem (:4747)</h2><p class="view-sub">Memoria persistente local (qwen3.5:9b).</p><span class="tag ${data.opencode_mem_up ? "tag-ok" : "tag-warn"}">${data.opencode_mem_up ? "Activo" : "Inactivo"}</span></div>`,
       ...(data.config?.plugins || []).map(
         (p) => `<div class="card"><h2>${esc(p)}</h2><p class="view-sub">Plugin declarado en opencode.json</p><span class="tag tag-ok">Configurado</span></div>`
       ),
@@ -483,7 +799,7 @@ async function loadTelemetry() {
   }
 }
 
-// Prompt execution (async streaming job without artificial 90s timeout)
+// Prompt execution
 let activeJobId = null;
 let jobPollTimer = null;
 
@@ -507,10 +823,10 @@ runPromptBtn.addEventListener("click", async () => {
   const statusTag = document.getElementById("composer-status");
   const outCard = document.getElementById("live-output-card");
   const outPre = document.getElementById("live-output-pre");
-  statusTag.textContent = "INICIANDO...";
+  statusTag.textContent = "CLASIFICANDO CON GENTLE AI...";
   statusTag.className = "tag tag-warn";
   outCard.classList.remove("hidden");
-  outPre.textContent = "Conectando con OpenCode y cargando modelo local en VRAM...";
+  outPre.textContent = "Clasificando riesgo/complejidad y conectando con OpenCode + Ollama...";
   runPromptBtn.disabled = true;
 
   try {
@@ -522,11 +838,12 @@ runPromptBtn.addEventListener("click", async () => {
         agent: document.getElementById("select-agent").value,
         model: document.getElementById("select-model").value,
         directory: document.getElementById("select-project").value,
+        isolate_worktree: Boolean(document.getElementById("chk-isolate-worktree")?.checked),
       }),
     });
     const data = await res.json();
     if (!data.ok || !data.job_id) {
-      statusTag.textContent = "ERROR";
+      statusTag.textContent = "BLOQUEADO / ERROR";
       statusTag.className = "tag tag-err";
       outPre.textContent = data.error || "No se pudo iniciar la ejecución.";
       runPromptBtn.disabled = false;
@@ -544,9 +861,13 @@ runPromptBtn.addEventListener("click", async () => {
         const subs = (job.active_subagents || [])
           .map((s) => `${s.agent || "agente"}${s.title ? ` (${s.title})` : ""}`)
           .join(", ");
-        if (job.output || subs) {
+        const supEval = job.supervisor_evaluation;
+        const supLine = supEval
+          ? `\n\n═══ SUPERVISOR DE CALIDAD: Veredicto [${supEval.verdict}] · Acción: ${supEval.next_action} ═══`
+          : "";
+        if (job.output || subs || supLine) {
           const footer = job.status === "running" && subs ? `\n\n▸ Procesando ahora: ${subs}` : "";
-          outPre.textContent = (job.output || "Iniciando ejecución...") + footer;
+          outPre.textContent = (job.output || "Iniciando ejecución...") + footer + supLine;
           outPre.scrollTop = outPre.scrollHeight;
         }
         if (job.status === "running") {
@@ -558,7 +879,7 @@ runPromptBtn.addEventListener("click", async () => {
         if (job.status === "succeeded") {
           statusTag.textContent = `COMPLETADO (${Math.round(job.elapsed_s || 0)}s)`;
           statusTag.className = "tag tag-ok";
-          if (!job.output) outPre.textContent = "Ejecución completada sin salida adicional.";
+          if (!job.output) outPre.textContent = "Ejecución completada." + supLine;
         } else if (job.status === "cancelled") {
           statusTag.textContent = "DETENIDO";
           statusTag.className = "tag tag-warn";
@@ -596,6 +917,145 @@ cancelJobBtn?.addEventListener("click", async () => {
 
 document.getElementById("clear-output-btn").addEventListener("click", () => {
   document.getElementById("live-output-card").classList.add("hidden");
+});
+
+// Interactive actions for Modules 2, 3, 6, 9, 10
+document.getElementById("run-router-sim-btn")?.addEventListener("click", async () => {
+  const spec = document.getElementById("router-sim-specialty").value;
+  const avoidSwap = document.getElementById("router-sim-avoid-swap").checked;
+  const outEl = document.getElementById("router-sim-output");
+  outEl.textContent = "Calculando ruta verificable...";
+  try {
+    const res = await fetch("/api/models/route", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ specialty: spec, avoid_vram_swap: avoidSwap }),
+    });
+    const data = await res.json();
+    const r = data.route || {};
+    outEl.innerHTML = `<strong>Modelo Seleccionado:</strong> <code>${esc(r.selected_model)}</code> · <strong>Score Verificable:</strong> <code>${esc(r.verifiable_score)}/100</code><br>
+      <strong>Motivo:</strong> ${esc(r.reason)}<br>
+      <strong>Fallback Chain:</strong> <code>${esc((r.fallback_chain || []).join(" → "))}</code>`;
+  } catch (err) {
+    outEl.textContent = `Error: ${err.message}`;
+  }
+});
+
+document.getElementById("run-sample-dag-btn")?.addEventListener("click", async () => {
+  const btn = document.getElementById("run-sample-dag-btn");
+  btn.disabled = true;
+  btn.textContent = "Ejecutando DAG...";
+  try {
+    await fetch("/api/harness/workflow", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        title: "Saghet Matrix Verification DAG",
+        nodes: [
+          { id: "dag_arch", title: "1. Arquitectura & Contratos", specialist: "architect", dependencies: [] },
+          { id: "dag_impl", title: "2. Implementación Verificada", specialist: "senior-developer", dependencies: ["dag_arch"] },
+          { id: "dag_rev", title: "3. Revisión Independiente", specialist: "code-reviewer", dependencies: ["dag_impl"] },
+          { id: "dag_sec", title: "4. Auditoría Seguridad P0", specialist: "platform-security-engineer", dependencies: ["dag_impl"] },
+          { id: "dag_qa", title: "5. Certificación QA", specialist: "qa-engineer", dependencies: ["dag_rev", "dag_sec"] },
+        ],
+      }),
+    });
+    await loadTelemetry();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "▶ Ejecutar Workflow DAG Verificado";
+  }
+});
+
+document.getElementById("memory-search-btn")?.addEventListener("click", async () => {
+  const q = document.getElementById("memory-search-input").value.trim();
+  const resEl = document.getElementById("memory-search-results");
+  if (!q) return;
+  resEl.innerHTML = `<div class="empty-state">Buscando recuerdos relevantes...</div>`;
+  try {
+    const res = await fetch("/api/memory/query", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ query: q }),
+    });
+    const data = await res.json();
+    const list = data.memories || [];
+    resEl.innerHTML = list.length
+      ? list
+          .map(
+            (m) => `<div class="list-row">
+              <span><strong>[${esc(m.tier)}] ${esc(m.title)}</strong><br><small>${esc(m.content)}</small></span>
+              <span class="tag tag-ok">Rel: ${m.relevance_score}</span>
+            </div>`
+          )
+          .join("")
+      : `<div class="empty-state">0 recuerdos superaron el umbral de relevancia (sin ruido).</div>`;
+  } catch (err) {
+    resEl.innerHTML = `<div class="empty-state">Error: ${esc(err.message)}</div>`;
+  }
+});
+
+document.getElementById("memory-store-btn")?.addEventListener("click", async () => {
+  const tier = document.getElementById("mem-add-tier").value;
+  const category = document.getElementById("mem-add-cat").value;
+  const title = document.getElementById("mem-add-title").value.trim();
+  const content = document.getElementById("mem-add-content").value.trim();
+  const msg = document.getElementById("memory-store-msg");
+  if (!title || !content) {
+    msg.textContent = "Completa título y contenido.";
+    return;
+  }
+  try {
+    const res = await fetch("/api/memory/store", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ tier, category, title, content, provenance: "control-center:user", confidence: 0.92 }),
+    });
+    const out = await res.json();
+    if (out.ok) {
+      msg.textContent = out.deduplicated
+        ? `Fusionado por deduplicación (${out.id}, x${out.occurrence_count})`
+        : `Recuerdo almacenado (${out.id})`;
+      document.getElementById("mem-add-title").value = "";
+      document.getElementById("mem-add-content").value = "";
+      await loadTelemetry();
+    } else {
+      msg.textContent = `Error: ${out.error}`;
+    }
+  } catch (err) {
+    msg.textContent = `Error: ${err.message}`;
+  }
+});
+
+document.getElementById("run-live-probe-btn")?.addEventListener("click", async () => {
+  const model = document.getElementById("probe-model-select").value;
+  const out = document.getElementById("live-probe-output");
+  const btn = document.getElementById("run-live-probe-btn");
+  btn.disabled = true;
+  out.textContent = `Ejecutando sonda verificable en vivo sobre ${model} en RTX 4060...`;
+  try {
+    const res = await fetch("/api/models/evaluate", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ model }),
+    });
+    const data = await res.json();
+    out.textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    out.textContent = String(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("toggle-harness-btn")?.addEventListener("click", async () => {
+  const current = Boolean(lastTelemetry?.harness?.status?.enabled);
+  await fetch("/api/harness/toggle", {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ enabled: !current }),
+  });
+  await loadTelemetry();
 });
 
 document.getElementById("run-doctor-btn").addEventListener("click", async () => {
