@@ -95,10 +95,21 @@ if [ "$DRY_RUN" -eq 0 ]; then
     sed "s|__SAGHET_HOME__|${HOME}|g" "${REPO_DIR}/config/dbhub.toml.tpl" > "${CFG_DIR}/dbhub.toml"
   fi
 
-  for s in worktree-isolation db-safe-ops security-checklist; do
+  for s in worktree-isolation db-safe-ops security-checklist multiagent-workflow; do
     mkdir -p "${CFG_DIR}/skills/${s}"
     cp -a "${REPO_DIR}/skills/${s}/SKILL.md" "${CFG_DIR}/skills/${s}/SKILL.md"
   done
+
+  if [ -d "${REPO_DIR}/commands" ]; then
+    mkdir -p "${CFG_DIR}/commands"
+    cp -a "${REPO_DIR}/commands/"*.md "${CFG_DIR}/commands/"
+  fi
+
+  if [ -x "${HOME}/.cargo/bin/gentle-ai" ] || command -v gentle-ai >/dev/null 2>&1; then
+    GENTLE_BIN="${HOME}/.cargo/bin/gentle-ai"
+    command -v gentle-ai >/dev/null 2>&1 && GENTLE_BIN="$(command -v gentle-ai)"
+    DO_NOT_TRACK=1 GENTLE_AI_TELEMETRY=0 "$GENTLE_BIN" skill-registry refresh --quiet --no-gitignore --cwd "${REPO_DIR}" >/dev/null 2>&1 || true
+  fi
 
   mkdir -p "${HOME}/.local/bin" "${HOME}/.local/share/applications"
   sed "s|__SAGHET_REPO__|${REPO_DIR}|g" "${REPO_DIR}/scripts/opencode-saghet" > "${HOME}/.local/bin/opencode-saghet"

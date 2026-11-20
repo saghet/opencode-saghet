@@ -17,6 +17,7 @@ import socket
 import socketserver
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -28,6 +29,11 @@ from pathlib import Path
 
 DASHBOARD_DIR = Path(__file__).resolve().parent
 REPO_DIR = DASHBOARD_DIR.parent
+if str(REPO_DIR) not in sys.path:
+    sys.path.insert(0, str(REPO_DIR))
+
+from scripts.supervisor.gentle_ai_bridge import get_gentle_ai_status
+from scripts.supervisor.quality_supervisor import QualitySupervisor, get_decisions
 ASSETS_DIR = REPO_DIR / "assets"
 OPENCODE_CONFIG_DIR = Path.home() / ".config" / "opencode"
 OPENCODE_DB_PATH = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
@@ -752,6 +758,10 @@ def collect_telemetry():
             "dns_rebinding_guard": True,
             "max_concurrent_jobs": MAX_CONCURRENT_JOBS,
         },
+        "gentle_ai": get_gentle_ai_status(REPO_DIR),
+        "supervisor": {
+            "recent_decisions": len(get_decisions(30)),
+        },
     }
 
 
@@ -896,6 +906,17 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
             )
             return
 
+        if parsed.path == "/api/supervisor/decisions":
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "gentle_ai": get_gentle_ai_status(REPO_DIR),
+                    "decisions": get_decisions(50),
+                },
+            )
+            return
+
         if parsed.path == "/api/session/job":
             qs = urllib.parse.parse_qs(parsed.query)
             jid = (qs.get("id") or [""])[0].strip()
@@ -912,6 +933,8 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     "returncode": job["returncode"],
                     "worktree": job.get("worktree"),
                     "branch": job.get("branch"),
+                    "supervisor_plan": job.get("supervisor_plan"),
+                    "supervisor_evaluation": job.get("supervisor_evaluation"),
                 }
             if payload["status"] == "running":
                 db_sess = get_sessions_from_db(8) or []
@@ -1068,6 +1091,8 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     return
 
             job_id = uuid.uuid4().hex[:12]
+            supervisor = QualitySupervisor()
+            sup_plan = supervisor.plan_execution(prompt, directory=resolved_dir)
             exec_dir = resolved_dir
             wt_branch = None
             if isolate_worktree:
@@ -1098,11 +1123,14 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     "started_at": time.time(),
                     "lines": [],
                     "returncode": None,
+                    "prompt": prompt,
                     "agent": agent,
                     "model": model,
                     "directory": str(exec_dir),
                     "worktree": str(exec_dir) if wt_branch else None,
                     "branch": wt_branch,
+                    "supervisor_plan": sup_plan,
+                    "supervisor_evaluation": None,
                 }
 
             write_audit_event(
@@ -1129,11 +1157,27 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                                         _JOBS[jid]["lines"].append(formatted)
                     rc = p.wait(timeout=5)
                     with _JOBS_LOCK:
+                        full_out = "".join(_JOBS[jid]["lines"])
+                        wt_dir = Path(_JOBS[jid]["worktree"]) if _JOBS[jid].get("worktree") else None
+                    sup_eval = supervisor.evaluate_execution(
+                        objective=prompt,
+                        agent=agent,
+                        agent_output=full_out,
+                        iteration=1,
+                        worktree_path=wt_dir,
+                        test_returncode=0 if rc == 0 else rc,
+                    )
+                    with _JOBS_LOCK:
+                        _JOBS[jid]["supervisor_evaluation"] = sup_eval
                         if _JOBS[jid]["status"] not in {"cancelled", "error"}:
                             _JOBS[jid]["status"] = "succeeded" if rc == 0 else "error"
                         _JOBS[jid]["returncode"] = rc
                         final_status = _JOBS[jid]["status"]
-                    write_audit_event("session.prompt.end", final_status, {"job_id": jid, "returncode": rc})
+                    write_audit_event(
+                        "session.prompt.end",
+                        final_status,
+                        {"job_id": jid, "returncode": rc, "supervisor_verdict": sup_eval.get("verdict")},
+                    )
                 except Exception as exc:
                     _terminate_process_tree(p)
                     with _JOBS_LOCK:
@@ -1221,6 +1265,47 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                 )
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": str(e)})
+            return
+
+        if parsed.path == "/api/supervisor/plan":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            objective = (body.get("objective") or body.get("prompt") or "").strip()
+            if not objective:
+                self._send_json(400, {"ok": False, "error": "Objective required"})
+                return
+            sup = QualitySupervisor(max_iterations=int(body.get("max_iterations", 3)))
+            plan = sup.plan_execution(objective, directory=REPO_DIR, context_files=body.get("context_files"))
+            self._send_json(200, {"ok": True, "plan": plan})
+            return
+
+        if parsed.path == "/api/supervisor/evaluate":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            sup = QualitySupervisor(max_iterations=int(body.get("max_iterations", 3)))
+            decision = sup.evaluate_execution(
+                objective=str(body.get("objective") or ""),
+                agent=str(body.get("agent") or "senior-developer"),
+                agent_output=str(body.get("agent_output") or ""),
+                iteration=int(body.get("iteration", 1)),
+                is_readonly=body.get("is_readonly"),
+                diff_files=body.get("diff_files"),
+                test_output=str(body.get("test_output") or ""),
+                test_returncode=body.get("test_returncode"),
+                reviewer_verdict=body.get("reviewer_verdict"),
+                require_tests=body.get("require_tests"),
+            )
+            self._send_json(200, {"ok": True, "decision": decision})
             return
 
         self.send_error(404)

@@ -28,9 +28,9 @@ Distribución profesional local-first sobre **OpenCode v2.3.2**, **Ollama 0.40.1
 - **Ejecución paralela controlada:** Permitida únicamente cuando se usen proveedores externos configurados por el usuario o tareas ligeras que no compitan por la GPU.
 - **Modelos pesados (`devstral-small-2:latest`, `qwen3-coder:30b`):** Reservados solo para invocación explícita; nunca como modelo por defecto.
 
-## Especialistas (13 Roles + Utilidades)
+## Especialistas (13 Principales + 4 Perfiles Bajo Demanda)
 
-1. `saghet-orchestrator` (`primary`, `ollama/qwen3.5:9b`): Coordinador principal y enrutador.
+1. `saghet-orchestrator` (`primary`, `ollama/qwen3.5:9b`): Coordinador principal, enrutador Gentle AI y Supervisor de Calidad.
 2. `architect` (`subagent`, `ollama/qwen3.5:9b`, solo lectura): Arquitectura modular, contratos y ADRs.
 3. `researcher` (`subagent`, `ollama/qwen3.5:9b`, solo lectura): Investigación técnica, GitHub y `context7`.
 4. `senior-developer` (`subagent`, `ollama/qwen3.5:9b`, R/W/Bash): Desarrollo general y refactorización.
@@ -43,6 +43,17 @@ Distribución profesional local-first sobre **OpenCode v2.3.2**, **Ollama 0.40.1
 11. `qa-engineer` (`subagent`, `ollama/qwen3.5:9b`, R/W/Bash): Pruebas unitarias, integración, E2E y regresión.
 12. `performance-engineer` (`subagent`, `ollama/qwen3.5:9b`, R/W/Bash): Profiling, benchmarks, CUDA/VRAM y optimización.
 13. `documentation-engineer` (`subagent`, `ollama/qwen3.5:9b`, sin Bash): Manuales, guías, diagramas Mermaid y ADRs.
+14. `agent-evaluation-engineer` (`subagent`, bajo demanda, `ollama/qwen3.5:9b`, R/W/Bash): Evaluación cuantitativa de modelos, first-pass success y benchmarks.
+15. `agent-observability-engineer` (`subagent`, bajo demanda, `ollama/qwen3.5:9b`, solo lectura): Trazas de ejecución, detección de bucles y errores de razonamiento.
+16. `integration-architect` (`subagent`, bajo demanda, `ollama/qwen3.5:9b`, solo lectura): Contratos ACP (DeepSeek Harness), Gentle AI, MCP y plugins.
+17. `platform-security-engineer` (`subagent`, bajo demanda, `ollama/abliterant/qwen3.5-rana:9b`, solo lectura): Blindaje de plataforma, CSRF/DNS Rebinding, systemd y worktrees.
+
+## Supervisión Inteligente de Agentes (Supervisor de Calidad)
+
+1. **Gentle AI recibe el objetivo** (`scripts/supervisor/gentle_ai_bridge.py` + `quality_supervisor.py`), clasifica complejidad (`low`, `medium`, `high`, `critical`) y riesgo (`read_only`, `standard_mutation`, `architectural`, `security_sensitive`), y selecciona el modelo y pipeline respetando la regla de 1 modelo activo en los 8 GB de VRAM.
+2. **Distribución y Ejecución:** `saghet-orchestrator` distribuye las subtareas respetando su DAG de dependencias y aislamiento por `git worktree` (`scripts/supervisor/worktree_manager.py`).
+3. **Verificación Independiente y Evidencia:** Ningún agente puede declarar exitosa una tarea solo porque terminó su respuesta. El Supervisor verifica evidencia real (diffs, salidas de tests con código 0, ausencia de contradicciones o errores de razonamiento y veredicto de `code-reviewer` / `qa-engineer`).
+4. **Decisión y Reintentos Controlados:** El Supervisor emite `ACCEPT`, `CORRECT` (máximo 2 reintentos controlados con retroalimentación) o `REJECT` (rollback de worktree y escalado), registrando cada decisión en `~/.local/share/opencode-saghet/supervisor_decisions.jsonl`.
 
 ## Seguridad por Defecto
 
