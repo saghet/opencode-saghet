@@ -1,6 +1,6 @@
 {
   "distribution": "OpenCode-Saghet",
-  "version": "0.1.0-alpha",
+  "version": "0.2.0-matrix-nextgen",
   "upstream": {
     "repository": "https://github.com/anomalyco/opencode",
     "version": "2.3.2",
@@ -14,18 +14,30 @@
     "cpu": "AMD Ryzen 9 7940HS",
     "gpu": "NVIDIA GeForce RTX 4060 Laptop",
     "vram_mib": 8188,
+    "vram_safe_budget_mib": 7800,
     "ram_gib": 32,
     "cuda_umd_tested": "13.5"
   },
   "pinned_components": {
     "ollama": "0.40.16",
+    "gentle_ai": {
+      "binary": "gentle-ai",
+      "version": "4.5.0",
+      "telemetry": "disabled_local_only"
+    },
+    "deepseek_harness_adapter": {
+      "protocol": "ACP JSON-RPC 2.0 stdio",
+      "cordis_in_core": false,
+      "toggleable": true
+    },
     "opencode_dcp": {
       "package": "@tarquinen/opencode-dcp",
       "version": "3.2.1"
     },
     "opencode_mem": {
       "package": "opencode-mem",
-      "version": "2.43.0"
+      "version": "2.43.0",
+      "vram_aligned_model": "qwen3.5:9b"
     },
     "plannotator_opencode": {
       "package": "@plannotator/opencode",
