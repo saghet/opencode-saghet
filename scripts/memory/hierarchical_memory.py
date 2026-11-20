@@ -21,6 +21,7 @@ de relevancia para no contaminar la ventana de 16k tokens con recuerdos irreleva
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -169,10 +170,10 @@ class HierarchicalMemoryStore:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 
-    def _connect(self) -> sqlite3.Connection:
+    def _connect(self):
         conn = sqlite3.connect(str(self.db_path), timeout=5.0)
         conn.row_factory = sqlite3.Row
-        return conn
+        return contextlib.closing(conn)
 
     def _init_schema(self) -> None:
         with self._connect() as conn:
