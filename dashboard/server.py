@@ -33,6 +33,8 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 from scripts.eval.model_lab import SmartModelRouter, load_evaluation_matrix, run_live_model_probe
+from scripts.harness.acp_adapter import DecoupledACPAdapter, set_harness_enabled
+from scripts.harness.workflow_engine import HarnessTaskBoard, HarnessWorkflowEngine, get_execution_traces
 from scripts.memory.hierarchical_memory import HierarchicalMemoryStore
 from scripts.supervisor.gentle_ai_bridge import get_gentle_ai_status
 from scripts.supervisor.quality_supervisor import QualitySupervisor, get_decisions
@@ -939,6 +941,20 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(200, {"ok": True, **store.get_summary()})
             return
 
+        if parsed.path == "/api/harness/status":
+            adapter = DecoupledACPAdapter()
+            board = HarnessTaskBoard()
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "harness": adapter.get_status(),
+                    "task_board": board.list_tasks()[:40],
+                    "traces": get_execution_traces(limit=40),
+                },
+            )
+            return
+
         if parsed.path == "/api/session/job":
             qs = urllib.parse.parse_qs(parsed.query)
             jid = (qs.get("id") or [""])[0].strip()
@@ -1411,6 +1427,57 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                 limit=int(body.get("limit", 6)),
             )
             self._send_json(200, {"ok": True, "count": len(memories), "memories": memories})
+            return
+
+        if parsed.path == "/api/harness/toggle":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            enabled = bool(body.get("enabled", True))
+            cfg = set_harness_enabled(enabled)
+            write_audit_event("harness.toggle", "ok", {"enabled": enabled}, self._client_ip())
+            self._send_json(200, {"ok": True, "enabled": cfg["enabled"], "config": cfg})
+            return
+
+        if parsed.path == "/api/harness/workflow":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            title = str(body.get("title") or "Workflow Saghet DAG").strip()
+            nodes = body.get("nodes")
+            if not isinstance(nodes, list) or not nodes:
+                self._send_json(400, {"ok": False, "error": "Se requiere lista 'nodes' no vacía para el DAG"})
+                return
+            raw_dir = str(body.get("directory") or str(REPO_DIR))
+            dir_ok, resolved_dir, dir_reason = validate_project_directory(raw_dir, create_if_missing=False)
+            if not dir_ok or resolved_dir is None:
+                self._send_json(403, {"ok": False, "error": dir_reason})
+                return
+            engine = HarnessWorkflowEngine()
+            if body.get("background"):
+                bg = engine.start_background_workflow(
+                    title=title,
+                    nodes_spec=nodes,
+                    directory=str(resolved_dir),
+                    persistent_session_id=body.get("session_id"),
+                )
+                self._send_json(200, bg)
+            else:
+                res = engine.execute_workflow(
+                    title=title,
+                    nodes_spec=nodes,
+                    directory=str(resolved_dir),
+                    persistent_session_id=body.get("session_id"),
+                )
+                self._send_json(200 if res.get("ok") else 400, res)
             return
 
         self.send_error(404)

@@ -555,6 +555,111 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             )
             self.assertEqual(len(irrelevant), 0, "Una consulta totalmente irrelevante debe devolver 0 recuerdos")
 
+    def test_k_phase5_deepseek_harness_acp_dag_and_fault_recovery(self):
+        import sys
+        if str(REPO_DIR) not in sys.path:
+            sys.path.insert(0, str(REPO_DIR))
+
+        from scripts.harness.acp_adapter import ACPContract, DecoupledACPAdapter, set_harness_enabled
+        from scripts.harness.workflow_engine import HarnessTaskBoard, HarnessWorkflowEngine
+
+        adapter = DecoupledACPAdapter()
+        st = adapter.get_status()
+
+        # 1. Verify mandatory architectural rules: NO Cordis in core, NO duplicate state stores, OpenCode ACP available
+        self.assertFalse(st["cordis_in_core"], "Prohibido incorporar Cordis en el núcleo de OpenCode")
+        self.assertFalse(st["duplicate_state_stores"], "Prohibido duplicar almacenes de estado de OpenCode")
+        self.assertEqual(st["engine_hierarchy"]["primary_coding_engine"], "opencode-v2.3.2")
+        self.assertEqual(st["engine_hierarchy"]["intelligence_and_routing"], "gentle-ai-4.5.0")
+        self.assertTrue(st["acp_probe"]["opencode_acp_available"], "opencode acp debe estar disponible")
+
+        # 2. Verify JSON-RPC 2.0 ACP contract validation
+        req_frame = ACPContract.build_request("session/prompt", {"session_id": "s1", "prompt": "test"})
+        valid_frame, _ = ACPContract.validate_frame(req_frame)
+        self.assertTrue(valid_frame)
+
+        # 3. Verify ability to disable and re-enable Harness cleanly (fallback to native OpenCode)
+        try:
+            set_harness_enabled(False, persist_user_config=False)
+            os_env_prev = subprocess.os.environ.get("SAGHET_HARNESS_ENABLED")
+            subprocess.os.environ["SAGHET_HARNESS_ENABLED"] = "0"
+            del_disabled = adapter.prepare_subagent_delegation("t_dis", "Analiza seguridad en server.py", str(REPO_DIR))
+            self.assertEqual(del_disabled["mode"], "native_opencode_fallback")
+            self.assertFalse(del_disabled["harness_enabled"])
+
+            subprocess.os.environ["SAGHET_HARNESS_ENABLED"] = "1"
+            set_harness_enabled(True, persist_user_config=False)
+            del_enabled = adapter.prepare_subagent_delegation("t_en", "Analiza seguridad en server.py", str(REPO_DIR))
+            self.assertEqual(del_enabled["mode"], "harness_acp_jsonrpc")
+            self.assertTrue(del_enabled["harness_enabled"])
+            self.assertIn("acp_frame", del_enabled)
+        finally:
+            if os_env_prev is None:
+                subprocess.os.environ.pop("SAGHET_HARNESS_ENABLED", None)
+            else:
+                subprocess.os.environ["SAGHET_HARNESS_ENABLED"] = os_env_prev
+            set_harness_enabled(True, persist_user_config=True)
+
+        # 4. Verify DAG workflow execution, persistent session, Task Board, Execution Traces, and Fault Recovery
+        with tempfile.TemporaryDirectory(prefix="saghet_harness_test_") as tmp:
+            board = HarnessTaskBoard(board_path=Path(tmp) / "board.json")
+            engine = HarnessWorkflowEngine(board=board, adapter=adapter)
+
+            # Node 2 fails on attempt 1 and succeeds on attempt 2 (fault recovery!)
+            def _flaky_executor(nspec: dict, del_info: dict, attempt: int) -> dict:
+                if nspec["id"] == "n2_backend" and attempt == 1:
+                    return {"ok": False, "error": "Simulated transient tool timeout on attempt 1"}
+                return {
+                    "ok": True,
+                    "output": f"Executed {nspec['id']} on attempt {attempt} with model {del_info['model']}",
+                }
+
+            nodes = [
+                {"id": "n1_arch", "title": "Diseño de contratos ACP", "specialist": "integration-architect", "dependencies": []},
+                {"id": "n2_backend", "title": "Implementar adaptador backend", "specialist": "backend-specialist", "dependencies": ["n1_arch"], "max_attempts": 2},
+                {"id": "n3_qa", "title": "Validar integración QA", "specialist": "qa-engineer", "dependencies": ["n2_backend"]},
+            ]
+            wf_res = engine.execute_workflow(
+                title="Test Harness DAG Recovery",
+                nodes_spec=nodes,
+                directory=str(REPO_DIR),
+                persistent_session_id="oc_sess_persist_01",
+                node_executor=_flaky_executor,
+            )
+            self.assertTrue(wf_res["ok"], wf_res)
+            self.assertEqual(wf_res["persistent_session_id"], "oc_sess_persist_01")
+            self.assertEqual(wf_res["recovered_nodes"], 1)
+            self.assertEqual(wf_res["nodes"]["n2_backend"]["status"], "RECOVERED")
+            self.assertEqual(wf_res["nodes"]["n2_backend"]["attempts"], 2)
+            self.assertEqual(wf_res["nodes"]["n3_qa"]["status"], "DONE")
+            self.assertGreaterEqual(len(wf_res["traces"]), 5)
+
+            board_tasks = {t["task_id"]: t for t in board.list_tasks(workflow_id=wf_res["workflow_id"])}
+            self.assertEqual(board_tasks["n2_backend"]["status"], "RECOVERED")
+            self.assertEqual(board_tasks["n3_qa"]["opencode_session_id"], "oc_sess_persist_01")
+
+            # 5. Verify cascading dependency block when a node exhausts retries, while independent branch succeeds
+            def _hard_fail_executor(nspec: dict, del_info: dict, attempt: int) -> dict:
+                if nspec["id"] == "b1_fail":
+                    return {"ok": False, "error": "Unrecoverable compilation error"}
+                return {"ok": True, "output": "Independent branch ok"}
+
+            branch_nodes = [
+                {"id": "b1_fail", "title": "Rama con fallo permanente", "dependencies": [], "max_attempts": 2},
+                {"id": "b2_dep", "title": "Dependiente de b1_fail", "dependencies": ["b1_fail"]},
+                {"id": "b3_indep", "title": "Rama independiente paralela", "dependencies": [], "requires_gpu": False},
+            ]
+            wf_fail = engine.execute_workflow(
+                title="Test Partial Branch Failure",
+                nodes_spec=branch_nodes,
+                directory=str(REPO_DIR),
+                node_executor=_hard_fail_executor,
+            )
+            self.assertFalse(wf_fail["ok"])
+            self.assertEqual(wf_fail["nodes"]["b1_fail"]["status"], "FAILED")
+            self.assertEqual(wf_fail["nodes"]["b2_dep"]["status"], "BLOCKED")
+            self.assertEqual(wf_fail["nodes"]["b3_indep"]["status"], "DONE")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
