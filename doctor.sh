@@ -80,7 +80,7 @@ if command -v systemctl >/dev/null 2>&1; then
   fi
 fi
 
-# 7. Validación JSON de opencode.json
+# 7. Validación JSON de opencode.json, VRAM alignment y políticas DCP/Seguridad
 if [ -f "${CFG_DIR}/opencode.json" ]; then
   if python3 -m json.tool "${CFG_DIR}/opencode.json" >/dev/null 2>&1; then
     ok "opencode.json es JSON válido"
@@ -89,7 +89,36 @@ if [ -f "${CFG_DIR}/opencode.json" ]; then
   fi
 fi
 
-# 7. Seguridad: verificar que no haya secretos rastreados en el repo
+if [ -f "${CFG_DIR}/dcp.jsonc" ] && grep -q '"protectUserMessages": true' "${CFG_DIR}/dcp.jsonc"; then
+  ok "DCP protege mensajes del usuario (protectUserMessages: true)"
+else
+  err "DCP no tiene protectUserMessages: true en ${CFG_DIR}/dcp.jsonc"
+fi
+
+if [ -f "${CFG_DIR}/opencode-mem.jsonc" ] && grep -q '"opencodeModel": "qwen3.5:9b"' "${CFG_DIR}/opencode-mem.jsonc"; then
+  ok "opencode-mem alineado en VRAM con modelo residente (qwen3.5:9b)"
+else
+  err "opencode-mem no está alineado con qwen3.5:9b (riesgo de colisión VRAM)"
+fi
+
+if [ -f "${CFG_DIR}/.saghet-dashboard-token" ]; then
+  TOK_PERM="$(stat -c '%a' "${CFG_DIR}/.saghet-dashboard-token" 2>/dev/null || echo "")"
+  if [ "$TOK_PERM" = "600" ]; then
+    ok "Token de seguridad del Control Center presente con permisos 600"
+  else
+    err "Permisos inseguros en ${CFG_DIR}/.saghet-dashboard-token (${TOK_PERM})"
+  fi
+else
+  warn "Token de seguridad ${CFG_DIR}/.saghet-dashboard-token aún no generado"
+fi
+
+if [ -f /etc/systemd/system/ollama.service.d/override.conf ] && grep -q 'OLLAMA_MAX_LOADED_MODELS=1' /etc/systemd/system/ollama.service.d/override.conf; then
+  ok "Ollama override activo (OLLAMA_MAX_LOADED_MODELS=1, KV_CACHE=q8_0)"
+else
+  warn "No se detectó /etc/systemd/system/ollama.service.d/override.conf con OLLAMA_MAX_LOADED_MODELS=1"
+fi
+
+# 8. Seguridad: verificar que no haya secretos rastreados en el repo
 if git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   TRACKED_SECRETS="$(git -C "$REPO_DIR" ls-files | grep -E '(^\.env|\.env\.db$|service\.json$|\.auth-token$|\.key$|\.pem$)' || true)"
   if [ -z "$TRACKED_SECRETS" ]; then

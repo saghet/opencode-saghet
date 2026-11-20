@@ -186,6 +186,22 @@
   "permission": {
     "bash": {
       "*": "allow",
+      "* .auth-token*": "deny",
+      "* .env": "deny",
+      "* .env.*": "deny",
+      "* .env.db*": "deny",
+      "* /.auth-token*": "deny",
+      "* /.env*": "deny",
+      "* /.opencode-mem/.auth-token*": "deny",
+      "* /.saghet-dashboard-token*": "deny",
+      "* /.ssh/id_*": "deny",
+      "* /service.json*": "deny",
+      "* service.json*": "deny",
+      "cat *.env*": "deny",
+      "cat *.key": "deny",
+      "cat *.pem": "deny",
+      "cat *.saghet-dashboard-token*": "deny",
+      "cat *service.json*": "deny",
       "chmod -R 777*": "deny",
       "chown -R *": "deny",
       "find *-delete*": "ask",
@@ -588,7 +604,9 @@
       "**/.env.db": "deny",
       ".env.db": "deny",
       "**/.auth-token": "deny",
-      ".auth-token": "deny"
+      ".auth-token": "deny",
+      "**/.saghet-dashboard-token": "deny",
+      ".saghet-dashboard-token": "deny"
     },
     "read": {
       "*": "allow",
@@ -633,7 +651,9 @@
       "**/.env.db": "deny",
       ".env.db": "deny",
       "**/.auth-token": "deny",
-      ".auth-token": "deny"
+      ".auth-token": "deny",
+      "**/.saghet-dashboard-token": "deny",
+      ".saghet-dashboard-token": "deny"
     },
     "compress": "deny",
     "webfetch": "allow",

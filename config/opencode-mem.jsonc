@@ -4,7 +4,7 @@
   "autoCaptureEnabled": true,
   "autoCaptureProviderOrder": "opencode-first",
   "opencodeProvider": "ollama",
-  "opencodeModel": "qwen2.5-coder:7b",
+  "opencodeModel": "qwen3.5:9b",
   "opencodeTimeoutMs": 45000,
   "userProfileEnabled": true,
   "chatMessage": {
