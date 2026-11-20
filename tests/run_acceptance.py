@@ -764,6 +764,32 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         for r in rep["results"]:
             self.assertTrue(r["passed"], f"Falló escenario {r['id']}")
 
+    def test_n_phase8_documentation_and_deliverables(self):
+        required_docs = [
+            REPO_DIR / "README.md",
+            REPO_DIR / "compatibility.json",
+            REPO_DIR / "docs" / "ARCHITECTURE.md",
+            REPO_DIR / "docs" / "VISUAL_ARCHITECTURE.md",
+            REPO_DIR / "docs" / "FEATURE_MATRIX.md",
+            REPO_DIR / "docs" / "EXTENSIONS_INVENTORY.md",
+            REPO_DIR / "docs" / "INSTALLATION_AND_CONFIG_MANUAL.md",
+            REPO_DIR / "docs" / "UPGRADE_AND_MAINTENANCE_GUIDE.md",
+            REPO_DIR / "docs" / "SECURITY_AND_BENCHMARK_REPORT.md",
+            REPO_DIR / "docs" / "adr" / "ADR-001-vram-single-model-and-routing.md",
+            REPO_DIR / "docs" / "adr" / "ADR-002-quality-supervisor-and-gentle-ai.md",
+            REPO_DIR / "docs" / "adr" / "ADR-003-decoupled-deepseek-harness-acp.md",
+            REPO_DIR / "docs" / "adr" / "ADR-004-hierarchical-memory-and-dcp.md",
+            REPO_DIR / "docs" / "adr" / "ADR-005-p0-platform-security-hardening.md",
+        ]
+        for doc_path in required_docs:
+            self.assertTrue(doc_path.is_file(), f"Falta entregable documental: {doc_path}")
+            self.assertGreater(doc_path.stat().st_size, 300, f"Documento vacío o incompleto: {doc_path}")
+
+        compat = json.loads((REPO_DIR / "compatibility.json").read_text(encoding="utf-8"))
+        self.assertEqual(compat["hardware_profile"]["vram_mib"], 8188)
+        self.assertIn("gentle_ai", compat["pinned_components"])
+        self.assertFalse(compat["pinned_components"]["deepseek_harness_adapter"]["cordis_in_core"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
