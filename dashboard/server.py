@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
-"""Saghet Control Center — Backend de telemetría real e interacción para OpenCode-Saghet."""
+"""Saghet Control Center — Backend blindado (P0 Security) y telemetría real para OpenCode-Saghet."""
 
 from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hmac
 import http.server
 import json
 import os
 import re
+import secrets
 import shutil
+import signal
+import socket
 import socketserver
 import sqlite3
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -26,16 +31,135 @@ REPO_DIR = DASHBOARD_DIR.parent
 ASSETS_DIR = REPO_DIR / "assets"
 OPENCODE_CONFIG_DIR = Path.home() / ".config" / "opencode"
 OPENCODE_DB_PATH = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
+SAGHET_STATE_DIR = Path.home() / ".local" / "share" / "opencode-saghet"
+AUDIT_LOG_PATH = SAGHET_STATE_DIR / "audit.log"
+TOKEN_FILE_PATH = OPENCODE_CONFIG_DIR / ".saghet-dashboard-token"
 OPENCODE_BIN = "/usr/bin/opencode" if Path("/usr/bin/opencode").is_file() else (shutil.which("opencode") or "opencode")
+
+MAX_CONCURRENT_JOBS = int(os.environ.get("SAGHET_MAX_JOBS", "1"))
+MAX_STORED_JOBS = 50
+MAX_JOB_LINES = 4000
+JOB_TIMEOUT_SECONDS = int(os.environ.get("SAGHET_JOB_TIMEOUT", "900"))
+
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
+FORBIDDEN_SYSTEM_PREFIXES = (
+    "/etc",
+    "/root",
+    "/usr",
+    "/var",
+    "/boot",
+    "/proc",
+    "/sys",
+    "/dev",
+    "/run",
+    "/sbin",
+    "/bin",
+    "/lib",
+    "/lib64",
+)
+FORBIDDEN_HOME_DOTDIRS = {
+    ".ssh",
+    ".gnupg",
+    ".aws",
+    ".config",
+    ".local",
+    ".cargo",
+    ".opencode-mem",
+    ".gemini",
+    ".pki",
+    ".password-store",
+    ".docker",
+    ".kube",
+}
 
 _PREV_CPU_TIMES: tuple[int, int] | None = None
 _JOBS_LOCK = threading.Lock()
 _JOBS: dict[str, dict] = {}
+_AUDIT_LOCK = threading.Lock()
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+_MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
+_AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
+_DESTRUCTIVE_PROMPT_RE = re.compile(
+    r"(\brm\s+-[rRfF]+\s+(/|~|\$HOME)\b|\bDROP\s+(DATABASE|SCHEMA|TABLE)\b|\bTRUNCATE\s+TABLE\b|\bgit\s+push\s+.*--force\b|\bmkfs\b|\bdd\s+if=)",
+    re.IGNORECASE,
+)
+_SECRET_ACCESS_RE = re.compile(
+    r"(\.saghet-dashboard-token|\.opencode-mem/\.auth-token|\.env\.db\b|/service\.json\b|\.ssh/id_(rsa|ed25519|ecdsa))",
+    re.IGNORECASE,
+)
+_SECRET_REDACT_RE = re.compile(
+    r"((?:OADE_PG_(?:READER|WRITER)_PASS|SAGHET_DASHBOARD_TOKEN|Authorization:\s*Bearer|api[_-]?key|secret|password)\s*[=:]\s*)([^\s\"']+)",
+    re.IGNORECASE,
+)
+
+
+def _init_security_token() -> str:
+    env_tok = os.environ.get("SAGHET_DASHBOARD_TOKEN", "").strip()
+    if env_tok and len(env_tok) >= 16:
+        return env_tok
+    try:
+        OPENCODE_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        if TOKEN_FILE_PATH.is_file():
+            tok = TOKEN_FILE_PATH.read_text(encoding="utf-8").strip()
+            if len(tok) >= 32:
+                os.chmod(TOKEN_FILE_PATH, 0o600)
+                return tok
+        tok = secrets.token_hex(32)
+        TOKEN_FILE_PATH.write_text(tok + "\n", encoding="utf-8")
+        os.chmod(TOKEN_FILE_PATH, 0o600)
+        return tok
+    except Exception:
+        return secrets.token_hex(32)
+
+
+DASHBOARD_TOKEN = _init_security_token()
+SESSION_COOKIE_VALUE = hmac.new(DASHBOARD_TOKEN.encode("utf-8"), b"saghet-matrix-session-v1", "sha256").hexdigest()
+
+
+def write_audit_event(action: str, status: str, details: dict | None = None, client: str = "127.0.0.1"):
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "epoch_ms": int(time.time() * 1000),
+        "client": client,
+        "action": action,
+        "status": status,
+        "details": details or {},
+    }
+    try:
+        with _AUDIT_LOCK:
+            SAGHET_STATE_DIR.mkdir(parents=True, exist_ok=True)
+            with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            os.chmod(AUDIT_LOG_PATH, 0o600)
+    except Exception:
+        pass
+
+
+def get_recent_audit_events(limit: int = 40) -> list[dict]:
+    if not AUDIT_LOG_PATH.is_file():
+        return []
+    try:
+        lines = AUDIT_LOG_PATH.read_text(encoding="utf-8", errors="replace").splitlines()
+        out = []
+        for raw in reversed(lines[-limit:]):
+            if raw.strip():
+                out.append(json.loads(raw))
+        return out
+    except Exception:
+        return []
+
+
+def _redact_secrets(text: str) -> str:
+    if not text:
+        return text
+    redacted = _SECRET_REDACT_RE.sub(r"\1[REDACTED]", text)
+    if DASHBOARD_TOKEN and DASHBOARD_TOKEN in redacted:
+        redacted = redacted.replace(DASHBOARD_TOKEN, "[REDACTED_DASHBOARD_TOKEN]")
+    return redacted
 
 
 def _format_opencode_line(raw_line: str) -> str:
-    clean = _ANSI_RE.sub("", raw_line)
+    clean = _redact_secrets(_ANSI_RE.sub("", raw_line))
     stripped = clean.strip()
     if stripped.startswith("{") and stripped.endswith("}"):
         try:
@@ -57,6 +181,46 @@ def _format_opencode_line(raw_line: str) -> str:
         except Exception:
             pass
     return clean
+
+
+def _terminate_process_tree(proc: subprocess.Popen | None) -> None:
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        pgid = os.getpgid(proc.pid)
+        os.killpg(pgid, signal.SIGTERM)
+    except Exception:
+        try:
+            proc.terminate()
+        except Exception:
+            return
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if proc.poll() is not None:
+            return
+        time.sleep(0.05)
+    try:
+        pgid = os.getpgid(proc.pid)
+        os.killpg(pgid, signal.SIGKILL)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def _prune_old_jobs_locked() -> None:
+    if len(_JOBS) <= MAX_STORED_JOBS:
+        return
+    finished = [
+        (jid, j["started_at"])
+        for jid, j in _JOBS.items()
+        if j.get("status") in {"succeeded", "error", "cancelled"}
+    ]
+    finished.sort(key=lambda x: x[1])
+    while len(_JOBS) > MAX_STORED_JOBS and finished:
+        old_id, _ = finished.pop(0)
+        _JOBS.pop(old_id, None)
 
 
 def run_cmd_json(cmd: list[str], timeout: float = 4.0):
@@ -174,37 +338,156 @@ def get_ram_stats():
         return {}
 
 
+def _load_raw_opencode_config() -> dict:
+    for candidate in (OPENCODE_CONFIG_DIR / "opencode.json", REPO_DIR / "config" / "opencode.json.tpl"):
+        if candidate.is_file():
+            try:
+                return json.loads(candidate.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+    return {}
+
+
 def get_opencode_config_summary():
-    cfg_path = OPENCODE_CONFIG_DIR / "opencode.json"
-    if not cfg_path.exists():
-        return {"agents": {}, "mcp": {}, "plugins": [], "default_agent": None, "model": None}
-    try:
-        with open(cfg_path, encoding="utf-8") as f:
-            cfg = json.load(f)
-        mcp_summary = {
-            name: {
-                "type": spec.get("type"),
-                "enabled": bool(spec.get("enabled", True)),
+    cfg = _load_raw_opencode_config()
+    if not cfg:
+        return {"agents": {}, "mcp": {}, "plugins": [], "default_agent": None, "model": None, "models_allowlist": []}
+    mcp_summary = {
+        name: {
+            "type": spec.get("type"),
+            "enabled": bool(spec.get("enabled", True)),
+        }
+        for name, spec in cfg.get("mcp", {}).items()
+    }
+    models_allowlist: set[str] = set()
+    if cfg.get("model"):
+        models_allowlist.add(str(cfg["model"]))
+    if cfg.get("small_model"):
+        models_allowlist.add(str(cfg["small_model"]))
+    for prov_id, prov_spec in (cfg.get("provider") or {}).items():
+        for mod_id in (prov_spec.get("models") or {}).keys():
+            models_allowlist.add(f"{prov_id}/{mod_id}")
+            models_allowlist.add(mod_id)
+    for agent_spec in (cfg.get("agent") or {}).values():
+        if agent_spec.get("model"):
+            models_allowlist.add(str(agent_spec["model"]))
+
+    return {
+        "default_agent": cfg.get("default_agent"),
+        "model": cfg.get("model"),
+        "plugins": cfg.get("plugins", []),
+        "mcp": mcp_summary,
+        "models_allowlist": sorted(models_allowlist),
+        "agents": {
+            k: {
+                "mode": v.get("mode", "subagent"),
+                "model": v.get("model", cfg.get("model")),
+                "description": v.get("description", ""),
+                "tools": v.get("tools", {}),
             }
-            for name, spec in cfg.get("mcp", {}).items()
-        }
-        return {
-            "default_agent": cfg.get("default_agent"),
-            "model": cfg.get("model"),
-            "plugins": cfg.get("plugins", []),
-            "mcp": mcp_summary,
-            "agents": {
-                k: {
-                    "mode": v.get("mode", "subagent"),
-                    "model": v.get("model", cfg.get("model")),
-                    "description": v.get("description", ""),
-                    "tools": v.get("tools", {}),
-                }
-                for k, v in cfg.get("agent", {}).items()
-            },
-        }
+            for k, v in cfg.get("agent", {}).items()
+        },
+    }
+
+
+def is_valid_agent(agent: str) -> bool:
+    if not agent or not _AGENT_NAME_RE.match(agent):
+        return False
+    cfg = get_opencode_config_summary()
+    return agent in (cfg.get("agents") or {})
+
+
+def is_valid_model(model: str) -> bool:
+    if not model:
+        return True
+    if model.startswith("-") or not _MODEL_NAME_RE.match(model):
+        return False
+    cfg = get_opencode_config_summary()
+    allowed = set(cfg.get("models_allowlist") or [])
+    if model in allowed:
+        return True
+    tags = fetch_json("http://127.0.0.1:11434/api/tags", timeout=1.5) or {}
+    for m in tags.get("models", []):
+        name = m.get("name")
+        if name and model in {name, f"ollama/{name}"}:
+            return True
+    return False
+
+
+def validate_project_directory(raw_dir: str, create_if_missing: bool = False) -> tuple[bool, Path | None, str]:
+    cleaned = (raw_dir or "").strip()
+    if not cleaned or "\x00" in cleaned:
+        return False, None, "Directorio vacío o inválido"
+    try:
+        expanded = Path(cleaned).expanduser()
+        target = expanded.resolve(strict=False)
+    except Exception as exc:
+        return False, None, f"Ruta inválida: {exc}"
+
+    target_str = str(target)
+    if target_str == "/" or target == Path.home().resolve():
+        return False, None, "No se permite operar directamente sobre la raíz o $HOME completo"
+
+    for prefix in FORBIDDEN_SYSTEM_PREFIXES:
+        if target_str == prefix or target_str.startswith(prefix + "/"):
+            return False, None, f"Directorio del sistema restringido por seguridad: {prefix}"
+
+    home_resolved = Path.home().resolve()
+    try:
+        rel_home = target.relative_to(home_resolved)
+        parts = rel_home.parts
+        if parts and parts[0] in FORBIDDEN_HOME_DOTDIRS:
+            return False, None, f"Directorio sensible protegido: ~/{parts[0]}"
+        if any(p.startswith(".") and p in FORBIDDEN_HOME_DOTDIRS for p in parts):
+            return False, None, "Ruta contiene un directorio oculto restringido"
+    except ValueError:
+        tmp_resolved = Path(tempfile.gettempdir()).resolve()
+        try:
+            target.relative_to(tmp_resolved)
+        except ValueError:
+            return False, None, "Solo se permiten directorios de proyectos dentro del espacio del usuario ($HOME)"
+
+    if create_if_missing and not target.exists():
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            return False, None, f"No se pudo crear el directorio: {exc}"
+
+    if not target.is_dir():
+        return False, None, f"No existe el directorio: {target}"
+
+    return True, target, "OK"
+
+
+def prepare_isolated_worktree(base_dir: Path, job_id: str) -> tuple[Path, str | None]:
+    """Crea un git worktree aislado para modificaciones de riesgo si base_dir es un repositorio Git."""
+    try:
+        chk = subprocess.run(
+            ["git", "-C", str(base_dir), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+        if chk.returncode != 0:
+            return base_dir, None
+        wt_root = SAGHET_STATE_DIR / "worktrees"
+        wt_root.mkdir(parents=True, exist_ok=True)
+        wt_path = wt_root / f"{base_dir.name}-{job_id}"
+        branch_name = f"saghet/job-{job_id}"
+        res = subprocess.run(
+            ["git", "-C", str(base_dir), "worktree", "add", str(wt_path), "-b", branch_name],
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
+        )
+        if res.returncode == 0 and wt_path.is_dir():
+            write_audit_event("worktree.create", "ok", {"base": str(base_dir), "worktree": str(wt_path), "branch": branch_name})
+            return wt_path, branch_name
     except Exception:
-        return {"agents": {}, "mcp": {}, "plugins": [], "default_agent": None, "model": None}
+        pass
+    return base_dir, None
 
 
 def get_skills_list() -> list[dict]:
@@ -263,6 +546,14 @@ def check_port(url: str) -> bool:
         return False
 
 
+def check_tcp_port(host: str, port: int, timeout: float = 0.6) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
 def get_projects_from_db() -> list[dict]:
     if not OPENCODE_DB_PATH.exists():
         return []
@@ -289,33 +580,90 @@ def get_projects_from_db() -> list[dict]:
         return []
 
 
+def get_sessions_from_db(limit: int = 30) -> list[dict] | None:
+    if not OPENCODE_DB_PATH.exists():
+        return None
+    try:
+        conn = sqlite3.connect(f"file:{OPENCODE_DB_PATH}?mode=ro", uri=True, timeout=2.0)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT id, project_id, parent_id, directory, title, agent, model,
+                   tokens_input, tokens_output, tokens_reasoning, tokens_cache_read,
+                   idle_outcome, time_created, time_updated
+            FROM session_v2
+            ORDER BY time_updated DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        conn.close()
+        sessions = []
+        for r in rows:
+            sessions.append(
+                {
+                    "id": r["id"],
+                    "projectID": r["project_id"],
+                    "parentID": r["parent_id"],
+                    "title": r["title"] or r["id"],
+                    "agent": r["agent"] or "saghet-orchestrator",
+                    "model": r["model"],
+                    "outcome": r["idle_outcome"] or "succeeded",
+                    "location": {"directory": r["directory"]},
+                    "time": {"created": r["time_created"] or 0, "updated": r["time_updated"] or 0},
+                    "tokens": {
+                        "input": r["tokens_input"] or 0,
+                        "output": r["tokens_output"] or 0,
+                        "reasoning": r["tokens_reasoning"] or 0,
+                        "cache": {"read": r["tokens_cache_read"] or 0},
+                    },
+                }
+            )
+        return sessions
+    except Exception:
+        return None
+
+
 def collect_telemetry():
-    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as ex:
-        f_agents = ex.submit(run_cmd_json, ["opencode", "api", "agent.list"])
-        f_sessions = ex.submit(run_cmd_json, ["opencode", "api", "session.list"])
-        f_providers = ex.submit(run_cmd_json, ["opencode", "api", "provider.list"])
-        f_projects = ex.submit(run_cmd_json, ["opencode", "api", "project.list"])
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as ex:
+        f_db_sessions = ex.submit(get_sessions_from_db, 30)
+        f_db_projects = ex.submit(get_projects_from_db)
         f_ollama_ps = ex.submit(fetch_json, "http://127.0.0.1:11434/api/ps")
         f_ollama_tags = ex.submit(fetch_json, "http://127.0.0.1:11434/api/tags")
         f_gpu = ex.submit(get_gpu_stats)
         f_mem = ex.submit(check_port, "http://127.0.0.1:4747/")
 
-        agents_api = f_agents.result()
-        sessions_api = f_sessions.result()
-        providers_api = f_providers.result()
-        projects_api = f_projects.result()
+        db_sessions = f_db_sessions.result()
+        raw_projects = f_db_projects.result()
         ollama_ps = f_ollama_ps.result()
         ollama_tags = f_ollama_tags.result()
         gpu_stats = f_gpu.result()
         mem_up = f_mem.result()
 
-    cfg = get_opencode_config_summary()
+    if db_sessions is not None:
+        sessions = db_sessions
+        opencode_up = check_tcp_port("127.0.0.1", 49374) or OPENCODE_DB_PATH.exists()
+    else:
+        sessions_api = run_cmd_json(["opencode", "api", "session.list"])
+        sessions = (sessions_api or {}).get("data", [])[:30]
+        opencode_up = sessions_api is not None
 
-    sessions = (sessions_api or {}).get("data", [])[:30]
+    cfg = get_opencode_config_summary()
+    raw_cfg = _load_raw_opencode_config()
+    agents_live = [{"id": name, **spec} for name, spec in (cfg.get("agents") or {}).items()]
+    providers_live = [
+        {
+            "id": pid,
+            "name": pspec.get("name", pid),
+            "activation": "enabled",
+            "settings": {"baseURL": (pspec.get("options") or {}).get("baseURL", "")},
+        }
+        for pid, pspec in (raw_cfg.get("provider") or {}).items()
+    ]
+
     token_totals = {"input": 0, "output": 0, "reasoning": 0, "cache_read": 0}
     projects_map: dict[str, dict] = {}
 
-    raw_projects = projects_api if isinstance(projects_api, list) else get_projects_from_db()
     for pr in raw_projects:
         canon = pr.get("canonical") or pr.get("worktree")
         if not canon:
@@ -370,7 +718,7 @@ def collect_telemetry():
         }
 
     return {
-        "opencode_server_up": sessions_api is not None,
+        "opencode_server_up": opencode_up,
         "opencode_mem_up": mem_up,
         "cpu": get_cpu_stats(),
         "gpu": gpu_stats,
@@ -390,14 +738,20 @@ def collect_telemetry():
             ],
         },
         "config": cfg,
-        "agents_live": (agents_api or {}).get("data", []),
-        "providers": (providers_api or {}).get("data", []),
+        "agents_live": agents_live,
+        "providers": providers_live,
         "sessions": sessions,
         "projects": sorted(projects_map.values(), key=lambda x: x["last_updated"], reverse=True),
         "skills": get_skills_list(),
         "databases": get_db_sources(),
         "benchmarks": get_benchmarks(),
         "token_totals": token_totals,
+        "security": {
+            "auth_enabled": True,
+            "csrf_protection": True,
+            "dns_rebinding_guard": True,
+            "max_concurrent_jobs": MAX_CONCURRENT_JOBS,
+        },
     }
 
 
@@ -405,19 +759,141 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(DASHBOARD_DIR), **kwargs)
 
+    def _client_ip(self) -> str:
+        return self.client_address[0] if self.client_address else "unknown"
+
+    def _add_security_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "same-origin")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+        )
+
     def _send_json(self, status: int, data: dict | list):
         payload = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(payload)))
+        self._add_security_headers()
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _check_host_and_origin(self, require_same_origin: bool = False) -> tuple[bool, str]:
+        """Protección contra DNS Rebinding y Cross-Origin CSRF."""
+        raw_host = (self.headers.get("Host") or "").strip()
+        if not raw_host:
+            return False, "Cabecera Host ausente"
+        host_only = raw_host.split(":")[0].strip().lower()
+        if raw_host.startswith("[") and "]" in raw_host:
+            host_only = raw_host[: raw_host.index("]") + 1].lower()
+        if host_only not in ALLOWED_HOSTS:
+            return False, f"Host no autorizado (DNS Rebinding bloqueado): {raw_host}"
+
+        sec_fetch_site = (self.headers.get("Sec-Fetch-Site") or "").strip().lower()
+        if sec_fetch_site == "cross-site":
+            return False, "Solicitud cross-site bloqueada (Sec-Fetch-Site: cross-site)"
+
+        origin = (self.headers.get("Origin") or "").strip()
+        if origin:
+            if origin.lower() == "null":
+                return False, "Origin null bloqueado"
+            try:
+                parsed_orig = urllib.parse.urlparse(origin)
+                orig_host = (parsed_orig.hostname or "").lower()
+                if orig_host not in ALLOWED_HOSTS:
+                    return False, f"Origin externo bloqueado (CSRF): {origin}"
+            except Exception:
+                return False, "Cabecera Origin malformada"
+
+        referer = (self.headers.get("Referer") or "").strip()
+        if require_same_origin and referer and not origin:
+            try:
+                parsed_ref = urllib.parse.urlparse(referer)
+                ref_host = (parsed_ref.hostname or "").lower()
+                if ref_host not in ALLOWED_HOSTS:
+                    return False, f"Referer externo bloqueado (CSRF): {referer}"
+            except Exception:
+                return False, "Cabecera Referer malformada"
+
+        return True, "OK"
+
+    def _has_valid_auth_token(self) -> bool:
+        """Verifica X-Saghet-Token, Authorization: Bearer o cookie de sesión + X-CSRF-Token."""
+        hdr_tok = (self.headers.get("X-Saghet-Token") or "").strip()
+        if hdr_tok and hmac.compare_digest(hdr_tok, DASHBOARD_TOKEN):
+            return True
+
+        auth_hdr = (self.headers.get("Authorization") or "").strip()
+        if auth_hdr.lower().startswith("bearer "):
+            bearer_tok = auth_hdr[7:].strip()
+            if bearer_tok and hmac.compare_digest(bearer_tok, DASHBOARD_TOKEN):
+                return True
+
+        csrf_hdr = (self.headers.get("X-CSRF-Token") or "").strip()
+        cookie_hdr = self.headers.get("Cookie") or ""
+        if csrf_hdr and hmac.compare_digest(csrf_hdr, DASHBOARD_TOKEN):
+            if f"saghet_session={SESSION_COOKIE_VALUE}" in cookie_hdr:
+                return True
+
+        return False
+
+    def _serve_index_with_csrf(self):
+        index_path = DASHBOARD_DIR / "index.html"
+        if not index_path.is_file():
+            self.send_error(404)
+            return
+        html = index_path.read_text(encoding="utf-8")
+        meta_tag = f'    <meta name="saghet-csrf-token" content="{DASHBOARD_TOKEN}" />\n  </head>'
+        if "</head>" in html and 'name="saghet-csrf-token"' not in html:
+            html = html.replace("  </head>", meta_tag, 1)
+        payload = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header(
+            "Set-Cookie",
+            f"saghet_session={SESSION_COOKIE_VALUE}; HttpOnly; SameSite=Strict; Path=/",
+        )
+        self._add_security_headers()
         self.end_headers()
         self.wfile.write(payload)
 
     def do_GET(self):
+        ok_origin, reason = self._check_host_and_origin(require_same_origin=False)
+        if not ok_origin:
+            write_audit_event("http.get.blocked", "denied", {"path": self.path, "reason": reason}, self._client_ip())
+            self._send_json(403, {"ok": False, "error": reason})
+            return
+
         parsed = urllib.parse.urlparse(self.path)
+
+        if parsed.path in {"/", "/index.html"}:
+            self._serve_index_with_csrf()
+            return
+
         if parsed.path == "/api/telemetry":
             self._send_json(200, collect_telemetry())
+            return
+
+        if parsed.path == "/api/security/status":
+            with _JOBS_LOCK:
+                running_jobs = sum(1 for j in _JOBS.values() if j.get("status") == "running")
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "auth_enabled": True,
+                    "csrf_protection": True,
+                    "dns_rebinding_guard": True,
+                    "max_concurrent_jobs": MAX_CONCURRENT_JOBS,
+                    "running_jobs": running_jobs,
+                    "audit_events": get_recent_audit_events(25),
+                },
+            )
             return
 
         if parsed.path == "/api/session/job":
@@ -434,13 +910,15 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     "elapsed_s": round(time.time() - job["started_at"], 1),
                     "output": "".join(job["lines"]),
                     "returncode": job["returncode"],
+                    "worktree": job.get("worktree"),
+                    "branch": job.get("branch"),
                 }
             if payload["status"] == "running":
-                sess = run_cmd_json(["opencode", "api", "session.list"], timeout=2.0)
+                db_sess = get_sessions_from_db(8) or []
                 active = [
                     {"agent": s.get("agent"), "title": (s.get("title") or "")[:40]}
-                    for s in (sess or {}).get("data", [])[:8]
-                    if not s.get("outcome")
+                    for s in db_sess
+                    if s.get("outcome") not in {"succeeded", "failed", "error"}
                 ]
                 payload["active_subagents"] = active
             self._send_json(200, payload)
@@ -449,8 +927,8 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/api/session/messages":
             qs = urllib.parse.parse_qs(parsed.query)
             sid = (qs.get("id") or [""])[0].strip()
-            if not sid:
-                self._send_json(400, {"error": "Missing session id"})
+            if not sid or not re.match(r"^[A-Za-z0-9_-]{4,80}$", sid):
+                self._send_json(400, {"error": "Invalid or missing session id"})
                 return
             msgs = run_cmd_json(["opencode", "api", "session.messages", "--param", f"sessionID={sid}"], timeout=8.0)
             self._send_json(200, msgs or {"data": []})
@@ -465,13 +943,13 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     timeout=15,
                     check=False,
                 )
-                self._send_json(200, {"ok": res.returncode == 0, "output": res.stdout + res.stderr})
+                self._send_json(200, {"ok": res.returncode == 0, "output": _redact_secrets(res.stdout + res.stderr)})
             except Exception as e:
                 self._send_json(500, {"ok": False, "output": str(e)})
             return
 
         if parsed.path.startswith("/assets/"):
-            rel = parsed.path[len("/assets/"):].lstrip("/")
+            rel = parsed.path[len("/assets/") :].lstrip("/")
             target = (ASSETS_DIR / rel).resolve()
             if str(target).startswith(str(ASSETS_DIR.resolve())) and target.is_file():
                 ctype = "image/svg+xml" if target.suffix == ".svg" else "application/octet-stream"
@@ -481,6 +959,7 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", ctype)
                 self.send_header("Content-Length", str(len(data)))
+                self._add_security_headers()
                 self.end_headers()
                 self.wfile.write(data)
                 return
@@ -494,71 +973,185 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        ok_origin, reason = self._check_host_and_origin(require_same_origin=True)
+        if not ok_origin:
+            write_audit_event("http.post.blocked", "denied", {"path": self.path, "reason": reason}, self._client_ip())
+            self._send_json(403, {"ok": False, "error": reason})
+            return
+
+        if not self._has_valid_auth_token():
+            write_audit_event("http.post.unauthorized", "denied", {"path": self.path}, self._client_ip())
+            self._send_json(403, {"ok": False, "error": "Token de autenticación ausente o inválido (X-Saghet-Token)"})
+            return
+
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/session/prompt":
             length = int(self.headers.get("Content-Length", "0"))
+            if length > 262144:
+                self._send_json(413, {"ok": False, "error": "Payload demasiado grande"})
+                return
             raw = self.rfile.read(length) if length > 0 else b"{}"
             try:
                 body = json.loads(raw.decode("utf-8"))
             except Exception:
-                self._send_json(400, {"error": "Invalid JSON"})
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
                 return
 
             prompt = (body.get("prompt") or "").strip()
             agent = (body.get("agent") or "saghet-orchestrator").strip()
             model = (body.get("model") or "").strip()
             directory = (body.get("directory") or str(REPO_DIR)).strip()
+            isolate_worktree = bool(body.get("isolate_worktree", False))
+            approve_destructive = bool(body.get("approve_destructive", False))
+
             if not prompt:
-                self._send_json(400, {"error": "Prompt cannot be empty"})
+                self._send_json(400, {"ok": False, "error": "Prompt cannot be empty"})
                 return
+
+            if _SECRET_ACCESS_RE.search(prompt):
+                write_audit_event(
+                    "session.prompt.secret_blocked",
+                    "denied",
+                    {"agent": agent, "directory": directory},
+                    self._client_ip(),
+                )
+                self._send_json(403, {"ok": False, "error": "Prompt bloqueado: intento de acceso a archivo secreto protegido"})
+                return
+
+            if _DESTRUCTIVE_PROMPT_RE.search(prompt) and not approve_destructive:
+                write_audit_event(
+                    "session.prompt.destructive_blocked",
+                    "denied",
+                    {"agent": agent, "directory": directory},
+                    self._client_ip(),
+                )
+                self._send_json(
+                    403,
+                    {
+                        "ok": False,
+                        "error": "Operación potencialmente destructiva detectada; requiere aprobación explícita (approve_destructive).",
+                    },
+                )
+                return
+
+            if not is_valid_agent(agent):
+                write_audit_event("session.prompt.invalid_agent", "denied", {"agent": agent}, self._client_ip())
+                self._send_json(400, {"ok": False, "error": f"Agente no permitido o no registrado: {agent}"})
+                return
+
+            if not is_valid_model(model):
+                write_audit_event("session.prompt.invalid_model", "denied", {"model": model}, self._client_ip())
+                self._send_json(400, {"ok": False, "error": f"Modelo no permitido o malformado: {model}"})
+                return
+
+            dir_ok, resolved_dir, dir_reason = validate_project_directory(directory, create_if_missing=False)
+            if not dir_ok or resolved_dir is None:
+                write_audit_event(
+                    "session.prompt.invalid_directory",
+                    "denied",
+                    {"directory": directory, "reason": dir_reason},
+                    self._client_ip(),
+                )
+                self._send_json(403, {"ok": False, "error": dir_reason})
+                return
+
+            with _JOBS_LOCK:
+                running_count = sum(1 for j in _JOBS.values() if j.get("status") == "running")
+                if running_count >= MAX_CONCURRENT_JOBS:
+                    self._send_json(
+                        429,
+                        {
+                            "ok": False,
+                            "error": f"Límite de {MAX_CONCURRENT_JOBS} trabajo(s) activo(s) alcanzado (protección de 8 GB VRAM).",
+                        },
+                    )
+                    return
+
+            job_id = uuid.uuid4().hex[:12]
+            exec_dir = resolved_dir
+            wt_branch = None
+            if isolate_worktree:
+                exec_dir, wt_branch = prepare_isolated_worktree(resolved_dir, job_id)
 
             cmd = [OPENCODE_BIN, "run", "--agent", agent, "--format", "json", "--auto"]
             if model:
                 cmd.extend(["--model", model])
-            cmd.append(prompt)
+            cmd.extend(["--", prompt])
 
-            cwd = directory if Path(directory).is_dir() else str(REPO_DIR)
-            job_id = uuid.uuid4().hex[:12]
             env = os.environ.copy()
             env["NO_COLOR"] = "1"
             proc = subprocess.Popen(
                 cmd,
-                cwd=cwd,
+                cwd=str(exec_dir),
                 env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
+                start_new_session=True,
             )
             with _JOBS_LOCK:
+                _prune_old_jobs_locked()
                 _JOBS[job_id] = {
                     "proc": proc,
                     "status": "running",
                     "started_at": time.time(),
                     "lines": [],
                     "returncode": None,
+                    "agent": agent,
+                    "model": model,
+                    "directory": str(exec_dir),
+                    "worktree": str(exec_dir) if wt_branch else None,
+                    "branch": wt_branch,
                 }
+
+            write_audit_event(
+                "session.prompt.start",
+                "running",
+                {"job_id": job_id, "agent": agent, "model": model, "directory": str(exec_dir), "branch": wt_branch},
+                self._client_ip(),
+            )
 
             def _reader(jid: str, p: subprocess.Popen):
                 try:
                     if p.stdout:
                         for line in p.stdout:
+                            if time.time() - _JOBS[jid]["started_at"] > JOB_TIMEOUT_SECONDS:
+                                _terminate_process_tree(p)
+                                with _JOBS_LOCK:
+                                    _JOBS[jid]["lines"].append("\n[ERROR] Tiempo máximo de ejecución excedido.\n")
+                                    _JOBS[jid]["status"] = "error"
+                                break
                             formatted = _format_opencode_line(line)
                             if formatted:
                                 with _JOBS_LOCK:
-                                    _JOBS[jid]["lines"].append(formatted)
-                    rc = p.wait()
+                                    if len(_JOBS[jid]["lines"]) < MAX_JOB_LINES:
+                                        _JOBS[jid]["lines"].append(formatted)
+                    rc = p.wait(timeout=5)
                     with _JOBS_LOCK:
-                        if _JOBS[jid]["status"] != "cancelled":
+                        if _JOBS[jid]["status"] not in {"cancelled", "error"}:
                             _JOBS[jid]["status"] = "succeeded" if rc == 0 else "error"
                         _JOBS[jid]["returncode"] = rc
+                        final_status = _JOBS[jid]["status"]
+                    write_audit_event("session.prompt.end", final_status, {"job_id": jid, "returncode": rc})
                 except Exception as exc:
+                    _terminate_process_tree(p)
                     with _JOBS_LOCK:
-                        _JOBS[jid]["lines"].append(f"\n[ERROR] {exc}\n")
+                        _JOBS[jid]["lines"].append(f"\n[ERROR] {_redact_secrets(str(exc))}\n")
                         _JOBS[jid]["status"] = "error"
+                    write_audit_event("session.prompt.error", "error", {"job_id": jid, "error": str(exc)})
 
             threading.Thread(target=_reader, args=(job_id, proc), daemon=True).start()
-            self._send_json(200, {"ok": True, "job_id": job_id, "status": "running"})
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "job_id": job_id,
+                    "status": "running",
+                    "directory": str(exec_dir),
+                    "branch": wt_branch,
+                },
+            )
             return
 
         if parsed.path == "/api/session/job/cancel":
@@ -576,8 +1169,8 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     return
                 proc = job.get("proc")
                 job["status"] = "cancelled"
-                if proc and proc.poll() is None:
-                    proc.terminate()
+            _terminate_process_tree(proc)
+            write_audit_event("session.job.cancel", "cancelled", {"job_id": jid}, self._client_ip())
             self._send_json(200, {"ok": True, "status": "cancelled"})
             return
 
@@ -590,14 +1183,17 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(400, {"error": "Invalid JSON"})
                 return
 
-            target_dir = Path((body.get("directory") or "").strip()).expanduser()
-            if not str(target_dir):
-                self._send_json(400, {"error": "Directorio requerido"})
-                return
-            if body.get("create_if_missing"):
-                target_dir.mkdir(parents=True, exist_ok=True)
-            if not target_dir.is_dir():
-                self._send_json(400, {"error": f"No existe el directorio: {target_dir}"})
+            raw_dir = (body.get("directory") or "").strip()
+            create_if_missing = bool(body.get("create_if_missing", False))
+            dir_ok, target_dir, dir_reason = validate_project_directory(raw_dir, create_if_missing=create_if_missing)
+            if not dir_ok or target_dir is None:
+                write_audit_event(
+                    "projects.add.blocked",
+                    "denied",
+                    {"directory": raw_dir, "reason": dir_reason},
+                    self._client_ip(),
+                )
+                self._send_json(403, {"ok": False, "error": dir_reason})
                 return
 
             try:
@@ -609,12 +1205,18 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     timeout=8,
                     check=False,
                 )
+                write_audit_event(
+                    "projects.add",
+                    "ok" if res.returncode == 0 else "error",
+                    {"directory": str(target_dir)},
+                    self._client_ip(),
+                )
                 self._send_json(
                     200,
                     {
                         "ok": res.returncode == 0,
                         "directory": str(target_dir),
-                        "output": res.stdout or res.stderr,
+                        "output": _redact_secrets(res.stdout or res.stderr),
                     },
                 )
             except Exception as e:

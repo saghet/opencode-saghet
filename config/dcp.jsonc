@@ -10,7 +10,7 @@
     "mode": "range",
     "minContextLimit": 4500,
     "maxContextLimit": 11500,
-    "protectUserMessages": false
+    "protectUserMessages": true
   },
   "strategies": {
     "deduplication": {

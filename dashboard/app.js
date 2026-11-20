@@ -121,6 +121,19 @@ promptInput.addEventListener("input", () => {
 });
 
 // Helpers
+function getCsrfToken() {
+  return document.querySelector('meta[name="saghet-csrf-token"]')?.getAttribute("content") || "";
+}
+
+function authHeaders(extra = {}) {
+  const tok = getCsrfToken();
+  return {
+    "Content-Type": "application/json",
+    ...(tok ? { "X-Saghet-Token": tok, "X-CSRF-Token": tok } : {}),
+    ...extra,
+  };
+}
+
 function fmtNum(n) {
   return Number(n || 0).toLocaleString("es-ES");
 }
@@ -503,7 +516,7 @@ runPromptBtn.addEventListener("click", async () => {
   try {
     const res = await fetch("/api/session/prompt", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body: JSON.stringify({
         prompt,
         agent: document.getElementById("select-agent").value,
@@ -576,7 +589,7 @@ cancelJobBtn?.addEventListener("click", async () => {
   if (!activeJobId) return;
   await fetch("/api/session/job/cancel", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify({ id: activeJobId }),
   });
 });
@@ -662,7 +675,7 @@ document.getElementById("submit-add-project-btn")?.addEventListener("click", asy
   try {
     const res = await fetch("/api/projects/add", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authHeaders(),
       body: JSON.stringify({ directory: dir, create_if_missing: Boolean(create) }),
     });
     const out = await res.json();

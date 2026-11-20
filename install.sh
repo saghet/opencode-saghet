@@ -75,6 +75,21 @@ if [ "$DRY_RUN" -eq 0 ]; then
     dst="${pair##*:}"
     sed "s|__SAGHET_HOME__|${HOME}|g" "${REPO_DIR}/config/${src}" > "${CFG_DIR}/${dst}"
   done
+  chmod 600 "${CFG_DIR}/opencode.json"
+
+  if [ ! -f "${CFG_DIR}/.saghet-dashboard-token" ]; then
+    python3 -c 'import secrets; print(secrets.token_hex(32))' > "${CFG_DIR}/.saghet-dashboard-token"
+  fi
+  chmod 600 "${CFG_DIR}/.saghet-dashboard-token"
+
+  if [ -f "${REPO_DIR}/config/saghet-dashboard.service.tpl" ]; then
+    mkdir -p "${HOME}/.config/systemd/user"
+    sed "s|__SAGHET_REPO__|${REPO_DIR}|g" "${REPO_DIR}/config/saghet-dashboard.service.tpl" > "${HOME}/.config/systemd/user/saghet-dashboard.service"
+    if command -v systemctl >/dev/null 2>&1; then
+      systemctl --user daemon-reload >/dev/null 2>&1 || true
+      systemctl --user enable --now saghet-dashboard.service >/dev/null 2>&1 || true
+    fi
+  fi
 
   if [ ! -f "${CFG_DIR}/dbhub.toml" ]; then
     sed "s|__SAGHET_HOME__|${HOME}|g" "${REPO_DIR}/config/dbhub.toml.tpl" > "${CFG_DIR}/dbhub.toml"
