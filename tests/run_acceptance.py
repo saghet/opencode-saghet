@@ -39,6 +39,10 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             "qa-engineer",
             "performance-engineer",
             "documentation-engineer",
+            "agent-evaluation-engineer",
+            "agent-observability-engineer",
+            "integration-architect",
+            "platform-security-engineer",
         ]
         for name in expected:
             self.assertIn(name, agents, f"Falta agente {name}")
@@ -97,7 +101,15 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         with open(CFG_DIR / "opencode.json", encoding="utf-8") as f:
             cfg = json.load(f)
 
-        for ro_agent in ["architect", "researcher", "security-auditor", "code-reviewer"]:
+        for ro_agent in [
+            "architect",
+            "researcher",
+            "security-auditor",
+            "code-reviewer",
+            "agent-observability-engineer",
+            "integration-architect",
+            "platform-security-engineer",
+        ]:
             tools = cfg["agent"][ro_agent]["tools"]
             self.assertFalse(tools.get("write", True))
             self.assertFalse(tools.get("edit", True))
@@ -234,6 +246,144 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         finally:
             proc.terminate()
             proc.wait(timeout=5)
+
+    def test_h_phase2_quality_supervisor_gentle_ai_and_worktrees(self):
+        import sys
+        if str(REPO_DIR) not in sys.path:
+            sys.path.insert(0, str(REPO_DIR))
+
+        from scripts.supervisor.gentle_ai_bridge import classify_and_route, get_gentle_ai_status
+        from scripts.supervisor.quality_supervisor import QualitySupervisor, TaskDependencyDAG, get_decisions
+        from scripts.supervisor.worktree_manager import (
+            create_worktree,
+            inspect_worktree,
+            merge_worktree,
+            rollback_worktree,
+            run_verification_in_worktree,
+        )
+
+        # 1. Gentle AI Bridge & Classification
+        g_status = get_gentle_ai_status(REPO_DIR)
+        self.assertTrue(g_status["available"], "Gentle AI CLI debe estar disponible")
+
+        low_route = classify_and_route("Lista brevemente los archivos de configuración")
+        self.assertEqual(low_route["complexity"], "low")
+        self.assertEqual(low_route["selected_model"], "ollama/qwen3.5:4b")
+        self.assertEqual(low_route["primary_specialist"], "fast-helper")
+
+        sec_route = classify_and_route("Implementa validación CSRF, Origin y token auth en backend server.py y systemd")
+        self.assertIn(sec_route["complexity"], {"high", "critical"})
+        self.assertEqual(sec_route["risk"], "security_sensitive")
+        self.assertTrue(sec_route["worktree_required"])
+        self.assertIn("security-auditor", sec_route["reviewers"])
+
+        # 2. Supervisor de Calidad: Detección de falta de evidencia, contradicciones y límite de reintentos
+        sup = QualitySupervisor(max_iterations=3)
+        plan = sup.plan_execution("Refactoriza el módulo backend y añade pruebas unitarias")
+        self.assertTrue(plan["dag"]["acyclic"])
+        self.assertGreaterEqual(len(plan["dag"]["topological_order"]), 3)
+
+        # 2a. Respuesta sin evidencia ni mutación -> CORRECT en intento 1
+        d1 = sup.evaluate_execution(
+            objective="Corrige el bug en server.py",
+            agent="backend-specialist",
+            agent_output="Ya terminé el trabajo solicitado.",
+            iteration=1,
+            is_readonly=False,
+            diff_files=[],
+            test_returncode=None,
+        )
+        self.assertEqual(d1["verdict"], "CORRECT")
+        self.assertTrue(d1["missing_evidence"])
+        self.assertIsNotNone(d1["correction_prompt"])
+
+        # 2b. Contradicción de razonamiento (afirma que tests pasaron cuando fallaron) -> CORRECT en intento 2
+        d2 = sup.evaluate_execution(
+            objective="Corrige el bug en server.py",
+            agent="backend-specialist",
+            agent_output="Modifiqué dashboard/server.py#L100. Todas las pruebas pasaron con 0 errores.",
+            iteration=2,
+            is_readonly=False,
+            diff_files=["dashboard/server.py"],
+            test_output="FAILED (failures=1)\nAssertionError: 500 != 200",
+            test_returncode=1,
+        )
+        self.assertEqual(d2["verdict"], "CORRECT")
+        self.assertTrue(any("reasoning_contradiction" in e for e in d2["reasoning_errors"]))
+
+        # 2c. Límite de iteraciones alcanzado (intento 3 de 3 con fallo) -> REJECT (rollback)
+        d3 = sup.evaluate_execution(
+            objective="Corrige el bug en server.py",
+            agent="backend-specialist",
+            agent_output="Modifiqué dashboard/server.py#L100 con TODO: implement",
+            iteration=3,
+            is_readonly=False,
+            diff_files=["dashboard/server.py"],
+            test_returncode=1,
+        )
+        self.assertEqual(d3["verdict"], "REJECT")
+        self.assertEqual(d3["next_action"], "rollback_and_escalate")
+
+        # 2d. Entrega con evidencia real, pruebas exitosas y aprobación del revisor -> ACCEPT
+        d_ok = sup.evaluate_execution(
+            objective="Corrige el bug en server.py",
+            agent="backend-specialist",
+            agent_output="Actualizado dashboard/server.py#L120-L145. Ran 7 tests in 3.5s [OK]",
+            iteration=1,
+            is_readonly=False,
+            diff_files=["dashboard/server.py"],
+            test_output="Ran 7 tests in 3.5s\n\nOK",
+            test_returncode=0,
+            reviewer_verdict="APPROVED",
+        )
+        self.assertEqual(d_ok["verdict"], "ACCEPT")
+
+        # 3. DAG de Dependencias y propagación de bloqueos
+        dag = TaskDependencyDAG()
+        t1 = dag.add_task("t1_arch", "Diseño", "architect")
+        t2 = dag.add_task("t2_dev", "Implementación", "senior-developer", dependencies=["t1_arch"])
+        t3 = dag.add_task("t3_qa", "Pruebas", "qa-engineer", dependencies=["t2_dev"])
+        t1.status = "FAILED"
+        states = dag.refresh_states()
+        self.assertEqual(states["t2_dev"], "BLOCKED")
+        self.assertEqual(states["t3_qa"], "BLOCKED")
+
+        # 4. Ciclo completo de aislamiento Git Worktree (create -> inspect -> verify -> merge / rollback)
+        with tempfile.TemporaryDirectory(prefix="saghet_wt_test_") as tmp:
+            repo = Path(tmp)
+            subprocess.run(["git", "init", "-b", "main", str(repo)], check=True, capture_output=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.email", "saghet@local"], check=True)
+            subprocess.run(["git", "-C", str(repo), "config", "user.name", "Saghet"], check=True)
+            (repo / "app.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(repo), "add", "app.py"], check=True)
+            subprocess.run(["git", "-C", str(repo), "commit", "-m", "init"], check=True, capture_output=True)
+
+            wt_res = create_worktree(repo, "phase2-test")
+            self.assertTrue(wt_res["ok"], wt_res)
+            wt_path = Path(wt_res["worktree_path"])
+            (wt_path / "app.py").write_text("def add(a, b):\n    return a + b\n\ndef mul(a, b):\n    return a * b\n", encoding="utf-8")
+
+            insp = inspect_worktree(wt_path)
+            self.assertTrue(insp["has_changes"])
+            self.assertIn("app.py", insp["changed_files"])
+
+            ver = run_verification_in_worktree(wt_path, ["python3", "-c", "import app; assert app.mul(3, 4) == 12"])
+            self.assertTrue(ver["ok"])
+
+            m_res = merge_worktree(repo, wt_path, wt_res["branch"], "feat: add mul")
+            self.assertTrue(m_res["ok"], m_res)
+            self.assertIn("def mul", (repo / "app.py").read_text(encoding="utf-8"))
+
+            # Test rollback on a failed worktree
+            wt_bad = create_worktree(repo, "phase2-bad")
+            wt_bad_path = Path(wt_bad["worktree_path"])
+            (wt_bad_path / "app.py").write_text("SYNTAX ERROR !!!", encoding="utf-8")
+            rb_res = rollback_worktree(repo, wt_bad_path, wt_bad["branch"])
+            self.assertTrue(rb_res["ok"])
+            self.assertIn("def mul", (repo / "app.py").read_text(encoding="utf-8"))
+
+        decisions = get_decisions(10)
+        self.assertGreaterEqual(len(decisions), 4)
 
 
 if __name__ == "__main__":

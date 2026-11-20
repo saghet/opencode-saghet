@@ -118,6 +118,20 @@ else
   warn "No se detectó /etc/systemd/system/ollama.service.d/override.conf con OLLAMA_MAX_LOADED_MODELS=1"
 fi
 
+if [ -x "${HOME}/.cargo/bin/gentle-ai" ] || command -v gentle-ai >/dev/null 2>&1; then
+  GENTLE_BIN="${HOME}/.cargo/bin/gentle-ai"
+  command -v gentle-ai >/dev/null 2>&1 && GENTLE_BIN="$(command -v gentle-ai)"
+  ok "Gentle AI activo: $($GENTLE_BIN --version 2>/dev/null | head -n1)"
+else
+  warn "Gentle AI CLI no detectado"
+fi
+
+if [ -d "${CFG_DIR}/commands" ] && grep -rq "gentle-orchestrator" "${CFG_DIR}/commands/" 2>/dev/null; then
+  err "Comandos slash contienen referencia huérfana a gentle-orchestrator"
+else
+  ok "Comandos slash sincronizados con saghet-orchestrator"
+fi
+
 # 8. Seguridad: verificar que no haya secretos rastreados en el repo
 if git -C "$REPO_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   TRACKED_SECRETS="$(git -C "$REPO_DIR" ls-files | grep -E '(^\.env|\.env\.db$|service\.json$|\.auth-token$|\.key$|\.pem$)' || true)"
