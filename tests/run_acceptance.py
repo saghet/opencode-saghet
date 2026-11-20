@@ -77,11 +77,18 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             proc.wait(timeout=5)
 
     def test_d_dev_bug_detect_and_fix(self):
+        import sys
+        if str(REPO_DIR) not in sys.path:
+            sys.path.insert(0, str(REPO_DIR))
+        from scripts.eval.model_lab import _call_ollama_generate, extract_code_block
+        from scripts.supervisor.quality_supervisor import QualitySupervisor
+
         with tempfile.TemporaryDirectory(prefix="saghet_dev_test_") as tmp:
             p = Path(tmp)
             calc = p / "calc.py"
             test_f = p / "test_calc.py"
-            calc.write_text("def sub(a, b):\n    return a + b  # bug intencional\n", encoding="utf-8")
+            buggy_src = "def sub(a: int, b: int) -> int:\n    return a + b  # bug intencional\n"
+            calc.write_text(buggy_src, encoding="utf-8")
             test_f.write_text(
                 "import unittest\nfrom calc import sub\n"
                 "class T(unittest.TestCase):\n"
@@ -93,9 +100,32 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             fail_res = subprocess.run(["python3", "-m", "unittest", "discover", "-s", tmp], capture_output=True, text=True)
             self.assertNotEqual(fail_res.returncode, 0, "Debía fallar con el bug intencional")
 
-            calc.write_text("def sub(a, b):\n    return a - b\n", encoding="utf-8")
+            # Prohibido simular el fix desde el test: el modelo real de Ollama diagnostica y genera el fix
+            prompt = (
+                f"Corrige el bug en `calc.py` que falla la prueba unitaria:\n"
+                f"```python\n{buggy_src}```\n"
+                f"Fallo:\n{fail_res.stderr}\n"
+                f"Devuelve únicamente el código Python corregido de `calc.py`."
+            )
+            gen = _call_ollama_generate("qwen3.5:9b", prompt, num_predict=100, think=False)
+            self.assertTrue(gen["ok"], gen)
+            ai_fixed_code = extract_code_block(gen["text"])
+            calc.write_text(ai_fixed_code + "\n", encoding="utf-8")
+
             pass_res = subprocess.run(["python3", "-m", "unittest", "discover", "-s", tmp], capture_output=True, text=True)
             self.assertEqual(pass_res.returncode, 0, pass_res.stderr)
+
+            sup = QualitySupervisor()
+            verdict = sup.evaluate_execution(
+                objective="Corrige el bug en calc.py",
+                agent="senior-developer",
+                agent_output=f"Corregido calc.py#L1.\n{pass_res.stderr}",
+                diff_files=["calc.py"],
+                test_output=pass_res.stderr,
+                test_returncode=pass_res.returncode,
+                reviewer_verdict="APPROVED",
+            )
+            self.assertEqual(verdict["verdict"], "ACCEPT")
 
     def test_e_security_policies_and_no_secrets(self):
         with open(CFG_DIR / "opencode.json", encoding="utf-8") as f:
@@ -706,6 +736,33 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         finally:
             proc.terminate()
             proc.wait(timeout=5)
+
+    def test_m_phase7_intelligence_benchmarks_10_scenarios(self):
+        bench_path = REPO_DIR / "benchmarks" / "saghet_intelligence_benchmarks.json"
+        self.assertTrue(bench_path.is_file(), "Falta reporte benchmarks/saghet_intelligence_benchmarks.json")
+        rep = json.loads(bench_path.read_text(encoding="utf-8"))
+        self.assertFalse(rep["artificial_test_mutations_allowed"])
+        self.assertEqual(rep["total_benchmarks"], 10)
+        self.assertEqual(rep["passed_benchmarks"], 10)
+        self.assertEqual(rep["pass_rate_pct"], 100.0)
+        self.assertLess(rep["peak_vram_mib"], 8188.0)
+
+        expected_ids = {
+            "01_feature_development",
+            "02_bug_fixing",
+            "03_refactoring",
+            "04_debugging",
+            "05_test_creation",
+            "06_technical_research",
+            "07_build_error_resolution",
+            "08_multi_file_work",
+            "09_multi_agent_execution",
+            "10_fault_recovery",
+        }
+        actual_ids = {r["id"] for r in rep["results"]}
+        self.assertEqual(actual_ids, expected_ids)
+        for r in rep["results"]:
+            self.assertTrue(r["passed"], f"Falló escenario {r['id']}")
 
 
 if __name__ == "__main__":

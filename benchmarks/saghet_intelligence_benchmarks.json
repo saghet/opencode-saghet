@@ -1,0 +1,131 @@
+{
+  "schema": "saghet.intelligence-benchmarks/v1",
+  "timestamp": "2026-11-20T20:05:44Z",
+  "model_evaluated": "qwen3.5:9b",
+  "total_benchmarks": 10,
+  "passed_benchmarks": 10,
+  "pass_rate_pct": 100.0,
+  "total_elapsed_s": 33.15,
+  "peak_vram_mib": 6568.0,
+  "peak_ram_mib": 9153.9,
+  "artificial_test_mutations_allowed": false,
+  "results": [
+    {
+      "id": "01_feature_development",
+      "category": "Desarrollo de una funcionalidad",
+      "specialist": "senior-developer",
+      "model": "qwen3.5:9b",
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "code_quality": 100.0,
+      "tok_per_s": 39.71,
+      "tokens": 274,
+      "elapsed_s": 4.67
+    },
+    {
+      "id": "02_bug_fixing",
+      "category": "Corrección de bugs",
+      "specialist": "senior-developer",
+      "model": "qwen3.5:9b",
+      "pre_fix_failed": true,
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "tok_per_s": 40.29,
+      "tokens": 380,
+      "elapsed_s": 1.75
+    },
+    {
+      "id": "03_refactoring",
+      "category": "Refactorización",
+      "specialist": "senior-developer",
+      "model": "qwen3.5:9b",
+      "quality_before": 85.0,
+      "quality_after": 100.0,
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "tok_per_s": 31.87,
+      "tokens": 314,
+      "elapsed_s": 4.6
+    },
+    {
+      "id": "04_debugging",
+      "category": "Depuración",
+      "specialist": "senior-developer",
+      "model": "qwen3.5:9b",
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "tok_per_s": 32.74,
+      "tokens": 352,
+      "elapsed_s": 1.6
+    },
+    {
+      "id": "05_test_creation",
+      "category": "Creación de pruebas",
+      "specialist": "qa-engineer",
+      "model": "qwen3.5:9b",
+      "kills_mutant": true,
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "tok_per_s": 31.61,
+      "tokens": 229,
+      "elapsed_s": 3.99
+    },
+    {
+      "id": "06_technical_research",
+      "category": "Investigación técnica",
+      "specialist": "researcher",
+      "model": "qwen3.5:9b",
+      "facts_verified": true,
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "tok_per_s": 31.29,
+      "tokens": 354,
+      "elapsed_s": 5.93
+    },
+    {
+      "id": "07_build_error_resolution",
+      "category": "Resolución de errores de compilación",
+      "specialist": "senior-developer",
+      "model": "qwen3.5:9b",
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "tok_per_s": 32.07,
+      "tokens": 222,
+      "elapsed_s": 2.01
+    },
+    {
+      "id": "08_multi_file_work",
+      "category": "Trabajo multiarchivo",
+      "specialist": "backend-specialist",
+      "model": "qwen3.5:9b",
+      "passed": true,
+      "supervisor_verdict": "ACCEPT",
+      "tok_per_s": 29.0,
+      "tokens": 204,
+      "elapsed_s": 2.36
+    },
+    {
+      "id": "09_multi_agent_execution",
+      "category": "Ejecución multiagente",
+      "specialist": "saghet-orchestrator (4-agent DAG)",
+      "model": "qwen3.5:9b",
+      "passed": true,
+      "workflow_id": "wf_d66d72b263",
+      "traces_count": 10,
+      "tokens": 128,
+      "elapsed_s": 1.82
+    },
+    {
+      "id": "10_fault_recovery",
+      "category": "Recuperación ante fallos",
+      "specialist": "senior-developer",
+      "model": "qwen3.5:9b",
+      "attempt1_verdict": "CORRECT",
+      "attempt2_verdict": "ACCEPT",
+      "passed": true,
+      "tok_per_s": 31.28,
+      "tokens": 475,
+      "elapsed_s": 3.32
+    }
+  ]
+}
