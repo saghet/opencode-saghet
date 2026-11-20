@@ -27,12 +27,12 @@
 1. **TUI Nativo (`themes/saghet-dark.json`, `themes/saghet-light.json`, `plugins/saghet-tui/index.js`):**
    - Desplegado en `~/.config/opencode/themes/` y `~/.config/opencode/tui-plugins/saghet-tui/`.
    - No modifica el binario `/usr/bin/opencode` ni `/usr/lib/opencode-desktop/app.asar` (preserva actualizaciones `pacman`).
-2. **Saghet Control Center (`dashboard/`):**
-   - Servidor local Python (`127.0.0.1:4780`) conectado en tiempo real a:
-     - OpenCode v2 API (`opencode api ...` / `127.0.0.1:49374`)
-     - Ollama (`127.0.0.1:11434/api/ps`, `/api/tags`)
-     - GPU NVIDIA (`nvidia-smi`), CPU (`/proc/stat`, `/proc/loadavg`) y RAM (`/proc/meminfo`)
-     - Benchmarks reales (`benchmarks/rtx4060_saghet.json`) y diagnóstico (`doctor.sh`)
+2. **Saghet Matrix Control Center v2 (`dashboard/` — 10 Módulos Especializados):**
+   - Servidor local Python blindado con seguridad P0 (`127.0.0.1:4780`, Auth Token 256-bit, Anti-CSRF, Anti-DNS Rebinding) conectado en tiempo real (`< 40 ms` vía SQLite RO) a:
+     - OpenCode v2 API / SQLite (`opencode.db`, `127.0.0.1:49374`) y `opencode acp`
+     - Gentle AI v4.5.0, Supervisor de Calidad (`quality_supervisor.py`), `SmartModelRouter` (`model_lab.py`), Memoria Jerárquica (`hierarchical_memory.py`) y Adaptador DeepSeek Harness ACP (`workflow_engine.py`)
+     - Ollama (`127.0.0.1:11434/api/ps`, `/api/tags`), GPU NVIDIA (`nvidia-smi`), CPU (`/proc/stat`) y RAM (`/proc/meminfo`)
+     - Los 10 módulos visuales: *1. Agent Command Center*, *2. Model Intelligence*, *3. Workflow Orchestration (DAG)*, *4. Task Board*, *5. Session Inspector*, *6. Memory Explorer*, *7. Performance Lab*, *8. Security Center*, *9. Benchmark Center* y *10. Integration Manager*.
 3. **Recursos Gráficos (`assets/matrix/`):**
    - `saghet-logo.svg`, `saghet-symbol.svg`, `app-icon.svg`, `matrix-bg.svg`, `agent-states.svg`.
    - Icono instalado en `~/.local/share/icons/hicolor/scalable/apps/opencode-saghet.svg`.

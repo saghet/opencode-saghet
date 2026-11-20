@@ -16,3 +16,7 @@ OpenCode-Saghet integra, referencia o configura los siguientes proyectos de terc
    - Servidor MCP para acceso SQL controlado a SQLite y PostgreSQL.
 7. **Sequential Thinking MCP (`@modelcontextprotocol/server-sequential-thinking` v2.2.0)** — Licencia **MIT**
    - Servidor MCP de razonamiento estructurado.
+8. **Gentle AI (`gentleman-programming/gentle-ai` v4.5.0)** — Licencia **Apache-2.0**
+   - Capa de clasificación, Review Ledger 4R, Judgment Day y registro de skills.
+9. **DeepSeek Harness (`deepseek-ai/deepseek-harness`)** — Licencia **MIT**
+   - Referencia arquitectónica y contrato ACP (Agent Client Protocol JSON-RPC 2.0) para orquestación desacoplada de workflows DAG, Task Board y Execution Traces (sin incorporar Cordis en el núcleo).

@@ -1,7 +1,7 @@
 {
   "name": "opencode-saghet-tui",
-  "version": "0.1.0",
-  "description": "OpenCode-Saghet TUI identity, telemetry toast, and Control Center launcher plugin",
+  "version": "0.2.0",
+  "description": "OpenCode-Saghet // Matrix Protocol Next-Gen TUI identity, telemetry toast, and 10-module Control Center launcher plugin",
   "type": "module",
   "main": "./index.js",
   "license": "MIT",

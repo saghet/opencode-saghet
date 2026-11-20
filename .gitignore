@@ -10,8 +10,10 @@
 credentials.json
 service.json
 .auth-token
+.saghet-dashboard-token
 
 # Runtime, caches & local databases
+.atl/
 __pycache__/
 *.pyc
 node_modules/
