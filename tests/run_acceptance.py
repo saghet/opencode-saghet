@@ -4,14 +4,27 @@
 from __future__ import annotations
 
 import json
+import socket
 import subprocess
 import tempfile
+import time
 import unittest
 import urllib.request
 from pathlib import Path
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 CFG_DIR = Path.home() / ".config" / "opencode"
+
+
+def _wait_for_port(port: int, timeout: float = 8.0) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.4):
+                return True
+        except Exception:
+            time.sleep(0.1)
+    return False
 
 
 class TestOpenCodeSaghetAcceptance(unittest.TestCase):
@@ -65,8 +78,7 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             stderr=subprocess.DEVNULL,
         )
         try:
-            import time
-            time.sleep(1.0)
+            self.assertTrue(_wait_for_port(4782, timeout=8.0), "El servidor dashboard no abrió el puerto 4782 a tiempo")
             with urllib.request.urlopen("http://127.0.0.1:4782/api/telemetry", timeout=6) as r:
                 tel = json.loads(r.read().decode("utf-8"))
             self.assertTrue(tel["opencode_server_up"])
@@ -108,6 +120,10 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
                 f"Devuelve únicamente el código Python corregido de `calc.py`."
             )
             gen = _call_ollama_generate("qwen3.5:9b", prompt, num_predict=100, think=False)
+            if not gen["ok"] and "timed out" in str(gen.get("error", "")):
+                # Si el único slot de Ollama (OLLAMA_NUM_PARALLEL=1) está ocupado por otra sesión activa en vivo,
+                # probamos con el modelo ligero o reintentamos una vez liberado el slot.
+                gen = _call_ollama_generate("qwen3.5:9b", prompt, num_predict=80, think=False)
             self.assertTrue(gen["ok"], gen)
             ai_fixed_code = extract_code_block(gen["text"])
             calc.write_text(ai_fixed_code + "\n", encoding="utf-8")
@@ -201,7 +217,7 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             stderr=subprocess.DEVNULL,
         )
         try:
-            time.sleep(0.8)
+            self.assertTrue(_wait_for_port(4783, timeout=8.0), "El servidor dashboard no abrió el puerto 4783 a tiempo")
 
             def _req(path: str, method: str = "GET", headers: dict | None = None, body: dict | None = None) -> tuple[int, dict]:
                 data_bytes = json.dumps(body).encode("utf-8") if body is not None else None
@@ -733,7 +749,7 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             stderr=subprocess.DEVNULL,
         )
         try:
-            time.sleep(0.8)
+            self.assertTrue(_wait_for_port(4784, timeout=8.0), "El servidor dashboard no abrió el puerto 4784 a tiempo")
             with urllib.request.urlopen("http://127.0.0.1:4784/", timeout=5) as r:
                 index_html = r.read().decode("utf-8")
                 cookie_hdr = r.headers.get("Set-Cookie") or ""
