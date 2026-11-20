@@ -1,0 +1,37 @@
+{
+  "schema": "saghet.deepseek-harness-adapter/v1",
+  "enabled": true,
+  "cordis_in_core": false,
+  "duplicate_state_stores": false,
+  "engine_hierarchy": {
+    "primary_coding_engine": "opencode-v2.3.2",
+    "intelligence_and_routing": "gentle-ai-4.5.0",
+    "complex_workflow_coordinator": "deepseek-harness-acp-adapter",
+    "memory_and_context": "saghet-hierarchical-memory+opencode-mem+dcp"
+  },
+  "acp": {
+    "protocol": "jsonrpc-2.0-stdio",
+    "version": "1.0",
+    "opencode_acp_command": ["opencode", "acp"],
+    "external_dsh_acp_command": ["npx", "--no-install", "@deepseek-ai/dsh-acp"],
+    "timeout_ms": 120000
+  },
+  "vram_guard": {
+    "target_gpu": "NVIDIA GeForce RTX 4060 Laptop (8188 MiB)",
+    "max_loaded_models": 1,
+    "serialize_local_gpu_nodes": true,
+    "allow_parallel_non_gpu_tools": true
+  },
+  "capabilities": [
+    "acp",
+    "dag_dependencies",
+    "task_board",
+    "workflows",
+    "background_jobs",
+    "persistent_sessions",
+    "events",
+    "execution_traces",
+    "subagent_delegation",
+    "fault_recovery"
+  ]
+}

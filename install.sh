@@ -95,6 +95,10 @@ if [ "$DRY_RUN" -eq 0 ]; then
     sed "s|__SAGHET_HOME__|${HOME}|g" "${REPO_DIR}/config/dbhub.toml.tpl" > "${CFG_DIR}/dbhub.toml"
   fi
 
+  if [ -f "${REPO_DIR}/config/harness.json" ] && [ ! -f "${CFG_DIR}/harness.json" ]; then
+    cp -a "${REPO_DIR}/config/harness.json" "${CFG_DIR}/harness.json"
+  fi
+
   for s in worktree-isolation db-safe-ops security-checklist multiagent-workflow; do
     mkdir -p "${CFG_DIR}/skills/${s}"
     cp -a "${REPO_DIR}/skills/${s}/SKILL.md" "${CFG_DIR}/skills/${s}/SKILL.md"
