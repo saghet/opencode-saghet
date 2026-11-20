@@ -33,6 +33,7 @@ if str(REPO_DIR) not in sys.path:
     sys.path.insert(0, str(REPO_DIR))
 
 from scripts.eval.model_lab import SmartModelRouter, load_evaluation_matrix, run_live_model_probe
+from scripts.memory.hierarchical_memory import HierarchicalMemoryStore
 from scripts.supervisor.gentle_ai_bridge import get_gentle_ai_status
 from scripts.supervisor.quality_supervisor import QualitySupervisor, get_decisions
 ASSETS_DIR = REPO_DIR / "assets"
@@ -933,6 +934,11 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
             )
             return
 
+        if parsed.path == "/api/memory/status":
+            store = HierarchicalMemoryStore()
+            self._send_json(200, {"ok": True, **store.get_summary()})
+            return
+
         if parsed.path == "/api/session/job":
             qs = urllib.parse.parse_qs(parsed.query)
             jid = (qs.get("id") or [""])[0].strip()
@@ -1362,6 +1368,49 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                 return
             probe = run_live_model_probe(model)
             self._send_json(200, probe)
+            return
+
+        if parsed.path == "/api/memory/store":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            store = HierarchicalMemoryStore()
+            res = store.store_memory(
+                tier=str(body.get("tier") or "experience"),
+                category=str(body.get("category") or "verified_execution"),
+                title=str(body.get("title") or ""),
+                content=str(body.get("content") or ""),
+                provenance=str(body.get("provenance") or "dashboard:manual"),
+                project_path=str(body.get("project_path") or "*"),
+                session_id=str(body.get("session_id") or ""),
+                context=body.get("context") if isinstance(body.get("context"), dict) else {},
+                confidence=float(body.get("confidence", 0.85)),
+            )
+            self._send_json(200 if res.get("ok") else 400, res)
+            return
+
+        if parsed.path == "/api/memory/query":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(length) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            store = HierarchicalMemoryStore()
+            memories = store.retrieve_relevant_memories(
+                query=str(body.get("query") or ""),
+                project_path=str(body.get("project_path") or "*"),
+                session_id=str(body.get("session_id") or ""),
+                tiers=body.get("tiers") if isinstance(body.get("tiers"), list) else None,
+                min_confidence=float(body.get("min_confidence", 0.60)),
+                limit=int(body.get("limit", 6)),
+            )
+            self._send_json(200, {"ok": True, "count": len(memories), "memories": memories})
             return
 
         self.send_error(404)

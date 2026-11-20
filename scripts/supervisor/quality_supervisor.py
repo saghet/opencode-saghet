@@ -23,6 +23,7 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from scripts.memory.hierarchical_memory import HierarchicalMemoryStore
 from scripts.supervisor.gentle_ai_bridge import classify_and_route, get_gentle_ai_status
 from scripts.supervisor.worktree_manager import inspect_worktree
 
@@ -387,4 +388,41 @@ class QualitySupervisor:
             "correction_prompt": correction_prompt,
         }
         record_decision(decision)
+        try:
+            mem_store = HierarchicalMemoryStore()
+            if verdict == "ACCEPT":
+                cat = "proven_solution" if iteration > 1 else "verified_execution"
+                mem_store.store_memory(
+                    tier="experience",
+                    category=cat,
+                    title=f"Ejecución verificada ({agent}): {(objective or '')[:90]}",
+                    content=f"Objetivo: {objective}\nAgente: {agent}\nSalida verificada: {(agent_output or '')[:400]}",
+                    provenance=f"supervisor:{agent}",
+                    context={
+                        "agent": agent,
+                        "iteration": iteration,
+                        "diff_files": observed_diffs or [],
+                        "test_returncode": test_returncode,
+                        "tags": [agent, cat, *routing.get("domains", [])],
+                    },
+                    confidence=0.95,
+                )
+            else:
+                err_summary = "; ".join(all_issues)[:400]
+                mem_store.store_memory(
+                    tier="experience",
+                    category="recurring_error",
+                    title=f"Defecto detectado en {agent}: {(all_issues[0] if all_issues else 'fallo')[:80]}",
+                    content=f"Agente: {agent}\nDefectos detectados: {err_summary}",
+                    provenance=f"supervisor:{agent}",
+                    context={
+                        "agent": agent,
+                        "verdict": verdict,
+                        "issues": all_issues,
+                        "tags": [agent, "recurring_error", *routing.get("domains", [])],
+                    },
+                    confidence=0.88,
+                )
+        except Exception:
+            pass
         return decision

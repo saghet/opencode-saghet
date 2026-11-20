@@ -454,6 +454,107 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         self.assertFalse(eval_ok["regression_broken"])
         self.assertGreaterEqual(eval_ok["code_quality_score"], 90.0)
 
+    def test_j_phase4_hierarchical_memory_dedup_and_relevance(self):
+        import sys
+        if str(REPO_DIR) not in sys.path:
+            sys.path.insert(0, str(REPO_DIR))
+
+        from scripts.memory.hierarchical_memory import HierarchicalMemoryStore, inspect_opencode_mem_and_dcp
+
+        # 1. Verify opencode-mem and DCP ecosystem inspection
+        eco = inspect_opencode_mem_and_dcp()
+        self.assertTrue(eco["dcp"]["enabled"])
+        self.assertTrue(eco["dcp"]["protect_user_messages"])
+        self.assertEqual(eco["opencode_mem"]["model"], "qwen3.5:9b")
+
+        # 2. Test 4 tiers, mandatory fields, deduplication, project isolation, and relevance filtering
+        with tempfile.TemporaryDirectory(prefix="saghet_mem_test_") as tmp:
+            db_file = Path(tmp) / "test_memory.db"
+            store = HierarchicalMemoryStore(db_path=db_file)
+            store.seed_defaults_if_empty()
+
+            # Store across all 4 tiers: session, project, experience, user
+            m_sess = store.store_memory(
+                tier="session",
+                category="session_context",
+                title="Contexto de sesión actual sobre migración SQLite",
+                content="La sesión s-101 está validando índices compuestos en SQLite con PRAGMA integrity_check.",
+                provenance="saghet-orchestrator:s-101",
+                project_path="/tmp/proj_alpha",
+                session_id="s-101",
+                context={"tags": ["sqlite", "index", "pragma"]},
+                confidence=0.90,
+            )
+            self.assertTrue(m_sess["ok"])
+            self.assertFalse(m_sess["deduplicated"])
+
+            m_proj_a = store.store_memory(
+                tier="project",
+                category="architectural_decision",
+                title="ADR Proyecto Alpha: usar FastAPI y PostgreSQL",
+                content="El proyecto Alpha utiliza exclusivamente PostgreSQL en puerto 5432 con migraciones Atlas.",
+                provenance="architect:adr-002",
+                project_path="/tmp/proj_alpha",
+                context={"tags": ["postgresql", "atlas", "alpha"], "evidence_ref": "docs/adr-002.md"},
+                confidence=0.95,
+            )
+            self.assertTrue(m_proj_a["ok"])
+
+            # Store experience (recurring error) and test deduplication on repeated error
+            m_err1 = store.store_memory(
+                tier="experience",
+                category="recurring_error",
+                title="Error ECONNRESET en Ollama cuando se supera timeout",
+                content="Cuando Ollama recarga un modelo de 9B en frío en RTX 4060, chunkTimeout debe ser >= 900000 ms.",
+                provenance="supervisor:backend-specialist",
+                context={"tags": ["ollama", "econnreset", "timeout"]},
+                confidence=0.88,
+            )
+            self.assertFalse(m_err1["deduplicated"])
+            self.assertEqual(m_err1["occurrence_count"], 1)
+
+            # Near-duplicate / exact duplicate must deduplicate and increment occurrence_count
+            m_err2 = store.store_memory(
+                tier="experience",
+                category="recurring_error",
+                title="Error ECONNRESET en Ollama cuando se supera timeout",
+                content="Cuando Ollama recarga un modelo de 9B en frío en RTX 4060, chunkTimeout debe ser >= 900000 ms.",
+                provenance="supervisor:devops-engineer",
+                context={"tags": ["ollama", "econnreset", "vram"]},
+                confidence=0.94,
+            )
+            self.assertTrue(m_err2["deduplicated"], "El recuerdo duplicado debía fusionarse")
+            self.assertEqual(m_err2["id"], m_err1["id"])
+            self.assertEqual(m_err2["occurrence_count"], 2)
+            self.assertEqual(m_err2["confidence"], 0.94)
+
+            # 3. Verify relevance retrieval and mandatory metadata fields
+            results = store.retrieve_relevant_memories(
+                query="Cómo resolver error ECONNRESET y timeout de Ollama en RTX 4060",
+                project_path="/tmp/proj_alpha",
+            )
+            self.assertGreaterEqual(len(results), 1)
+            top = results[0]
+            self.assertEqual(top["id"], m_err1["id"])
+            for field_name in ("provenance", "created_at", "updated_at", "context", "confidence", "relevance_score"):
+                self.assertIn(field_name, top)
+
+            # 4. Verify project isolation: querying from /tmp/proj_beta must NOT return /tmp/proj_alpha's project ADR
+            beta_results = store.retrieve_relevant_memories(
+                query="PostgreSQL migraciones Atlas proyecto Alpha",
+                project_path="/tmp/proj_beta",
+                tiers=["project"],
+            )
+            beta_ids = [r["id"] for r in beta_results]
+            self.assertNotIn(m_proj_a["id"], beta_ids, "No debe filtrar recuerdos de proyecto Alpha hacia proyecto Beta")
+
+            # 5. Verify irrelevant memories are NOT retrieved
+            irrelevant = store.retrieve_relevant_memories(
+                query="Receta de cocina para preparar paella valenciana",
+                project_path="/tmp/proj_alpha",
+            )
+            self.assertEqual(len(irrelevant), 0, "Una consulta totalmente irrelevante debe devolver 0 recuerdos")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
