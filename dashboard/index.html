@@ -20,7 +20,7 @@
             <img src="/assets/matrix/saghet-symbol.svg" alt="Saghet" class="brand-icon" />
             <div class="brand-text">
               <span class="brand-title">OPENCODE-SAGHET</span>
-              <span class="brand-proto">MATRIX PROTOCOL</span>
+              <span class="brand-proto">MATRIX PROTOCOL // NEXT-GEN</span>
             </div>
           </a>
           <div id="session-tabs" class="session-tabs" role="tablist" aria-label="Pestañas de sesiones"></div>
@@ -56,28 +56,30 @@
       </div>
 
       <div class="workspace-body">
-        <!-- B. BARRA LATERAL -->
+        <!-- B. BARRA LATERAL (10 MÓDULOS + NÚCLEO) -->
         <aside id="sidebar" class="sidebar" aria-label="Navegación principal">
           <div class="sidebar-group">
-            <div class="sidebar-label">NÚCLEO</div>
-            <button class="nav-item active" data-nav="home"><span class="nav-glyph">◈</span><span>Inicio</span></button>
-            <button class="nav-item" data-nav="sessions"><span class="nav-glyph">⌘</span><span>Sesiones</span></button>
+            <div class="sidebar-label">CONSOLA &amp; PROYECTOS</div>
+            <button class="nav-item active" data-nav="home"><span class="nav-glyph">◈</span><span>Inicio // Prompt</span></button>
             <button class="nav-item" data-nav="projects"><span class="nav-glyph">▤</span><span>Proyectos</span></button>
-            <button class="nav-item" data-nav="agents"><span class="nav-glyph">⬡</span><span>Agentes</span></button>
           </div>
           <div class="sidebar-group">
-            <div class="sidebar-label">ECOSISTEMA</div>
-            <button class="nav-item" data-nav="performance"><span class="nav-glyph">⚡</span><span>Ollama &amp; GPU</span></button>
-            <button class="nav-item" data-nav="plugins"><span class="nav-glyph">❖</span><span>Plugins</span></button>
-            <button class="nav-item" data-nav="tools"><span class="nav-glyph">⚒</span><span>Herramientas</span></button>
-            <button class="nav-item" data-nav="databases"><span class="nav-glyph">⛁</span><span>Bases de datos</span></button>
-            <button class="nav-item" data-nav="mcp"><span class="nav-glyph">⇄</span><span>MCP</span></button>
+            <div class="sidebar-label">10 MÓDULOS MATRIX</div>
+            <button class="nav-item" data-nav="agents"><span class="nav-glyph">⬡</span><span>1. Agent Command</span></button>
+            <button class="nav-item" data-nav="model-intelligence"><span class="nav-glyph">🧠</span><span>2. Model Intelligence</span></button>
+            <button class="nav-item" data-nav="workflows"><span class="nav-glyph">☍</span><span>3. Workflows (DAG)</span></button>
+            <button class="nav-item" data-nav="taskboard"><span class="nav-glyph">▦</span><span>4. Task Board</span></button>
+            <button class="nav-item" data-nav="sessions"><span class="nav-glyph">⌘</span><span>5. Session Inspector</span></button>
+            <button class="nav-item" data-nav="memory"><span class="nav-glyph">⛁</span><span>6. Memory Explorer</span></button>
+            <button class="nav-item" data-nav="performance"><span class="nav-glyph">⚡</span><span>7. Performance Lab</span></button>
+            <button class="nav-item" data-nav="security"><span class="nav-glyph">🛡</span><span>8. Security Center</span></button>
+            <button class="nav-item" data-nav="benchmarks"><span class="nav-glyph">📊</span><span>9. Benchmark Center</span></button>
+            <button class="nav-item" data-nav="integrations"><span class="nav-glyph">⇄</span><span>10. Integrations</span></button>
           </div>
           <div class="sidebar-group">
             <div class="sidebar-label">SISTEMA</div>
             <button class="nav-item" data-nav="settings"><span class="nav-glyph">⚙</span><span>Configuración</span></button>
-            <button class="nav-item" data-nav="diagnostics"><span class="nav-glyph">✚</span><span>Diagnóstico</span></button>
-            <button class="nav-item" data-nav="about"><span class="nav-glyph">ⓘ</span><span>Acerca de Saghet</span></button>
+            <button class="nav-item" data-nav="diagnostics"><span class="nav-glyph">✚</span><span>Diagnóstico (Doctor)</span></button>
           </div>
           <div class="sidebar-footer">
             <div id="server-status-line" class="status-line">
@@ -93,24 +95,24 @@
             <div class="hero-panel">
               <img src="/assets/matrix/saghet-logo.svg" alt="OpenCode-Saghet Matrix Protocol" class="hero-logo" />
               <p class="hero-welcome">
-                ENTORNO LOCAL-FIRST ACTIVO · GARUDA LINUX · CUDA / OLLAMA · 13 ESPECIALISTAS LISTOS
+                ENTORNO LOCAL-FIRST ACTIVO · GARUDA LINUX · CUDA / OLLAMA · 17 ESPECIALISTAS · GENTLE AI 4.5.0 · HARNESS ACP
               </p>
             </div>
 
             <div class="composer-card">
               <div class="composer-header">
-                <span class="composer-title">CONSOLA DE INSTRUCCIONES // PROMPT</span>
+                <span class="composer-title">CONSOLA DE INSTRUCCIONES // PROMPT SUPERVISADO</span>
                 <span id="composer-status" class="tag tag-ok">LISTO</span>
               </div>
               <textarea
                 id="prompt-input"
                 class="prompt-textarea"
                 rows="4"
-                placeholder="Introduce una instrucción para saghet-orchestrator o selecciona un especialista..."
+                placeholder="Introduce una instrucción para saghet-orchestrator o selecciona uno de los 17 especialistas..."
               ></textarea>
               <div class="composer-controls">
                 <label class="ctrl-field">
-                  <span>AGENTE</span>
+                  <span>AGENTE (17 PERFILES)</span>
                   <select id="select-agent"></select>
                 </label>
                 <label class="ctrl-field">
@@ -124,6 +126,10 @@
                 <label class="ctrl-field">
                   <span>CONTEXTO / PROYECTO</span>
                   <select id="select-project"></select>
+                </label>
+                <label class="ctrl-field" style="flex:0 0 auto;flex-direction:row;align-items:center;gap:6px;padding-bottom:7px;">
+                  <input id="chk-isolate-worktree" type="checkbox" />
+                  <span>Aislar Worktree</span>
                 </label>
                 <button id="run-prompt-btn" class="btn btn-execute">EJECUTAR //</button>
               </div>
@@ -140,9 +146,9 @@
 
             <div id="live-output-card" class="card hidden">
               <div class="card-head">
-                <h2>RESPUESTA DE EJECUCIÓN</h2>
+                <h2>RESPUESTA DE EJECUCIÓN &amp; VEREDICTO DEL SUPERVISOR</h2>
                 <div style="display:flex;gap:8px;">
-                  <button id="cancel-job-btn" class="btn hidden" style="border-color:var(--error);color:var(--error);">Detener</button>
+                  <button id="cancel-job-btn" class="btn hidden" style="border-color:var(--error);color:var(--error);">Detener Árbol</button>
                   <button id="clear-output-btn" class="btn btn-ghost">Limpiar</button>
                 </div>
               </div>
@@ -153,26 +159,136 @@
               <div class="card">
                 <div class="card-head">
                   <h2>TELEMETRÍA HARDWARE &amp; OLLAMA</h2>
-                  <button class="btn btn-ghost" data-nav="performance">Ver detalle →</button>
+                  <button class="btn btn-ghost" data-nav="performance">7. Performance Lab →</button>
                 </div>
                 <div id="home-hw-metrics" class="metrics-grid"></div>
               </div>
               <div class="card">
                 <div class="card-head">
                   <h2>SESIONES RECIENTES</h2>
-                  <button class="btn btn-ghost" data-nav="sessions">Abrir todas →</button>
+                  <button class="btn btn-ghost" data-nav="sessions">5. Session Inspector →</button>
                 </div>
                 <div id="home-recent-sessions" class="compact-list"></div>
               </div>
             </div>
           </section>
 
-          <!-- VISTA: SESIONES Y CONVERSACIÓN -->
+          <!-- MÓDULO 1: AGENT COMMAND CENTER -->
+          <section id="view-agents" class="view">
+            <div class="view-header">
+              <div>
+                <h1>1. AGENT COMMAND CENTER (17 ESPECIALISTAS &amp; SUPERVISOR)</h1>
+                <p class="view-sub">13 especialistas principales + 4 perfiles bajo demanda, árbol de delegaciones y registro de decisiones del Supervisor.</p>
+              </div>
+            </div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>ÁRBOL DE DELEGACIONES MULTIAGENTE</h2>
+                <div id="delegation-tree-list" class="compact-list"></div>
+              </div>
+              <div class="card">
+                <h2>SUPERVISOR DE CALIDAD (DECISIONES, ERRORES Y REINTENTOS)</h2>
+                <div id="supervisor-decisions-list" class="compact-list"></div>
+              </div>
+            </div>
+            <div class="card">
+              <h2>MATRIZ DE AGENTES ACTIVOS (17 PERFILES)</h2>
+              <div id="agents-cards-grid" class="cards-grid"></div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 2: MODEL INTELLIGENCE -->
+          <section id="view-model-intelligence" class="view">
+            <div class="view-header">
+              <div>
+                <h1>2. MODEL INTELLIGENCE &amp; SMART ROUTING</h1>
+                <p class="view-sub">Puntuaciones verificables por especialidad, matriz de 12 métricas y enrutador inteligente consciente de 8 GB VRAM.</p>
+              </div>
+            </div>
+            <div class="card">
+              <h2>SIMULADOR DE ENRUTAMIENTO INTELIGENTE (GENTLE AI + SMART ROUTER)</h2>
+              <div class="composer-controls">
+                <label class="ctrl-field">
+                  <span>ESPECIALIDAD</span>
+                  <select id="router-sim-specialty">
+                    <option value="coding">Programación (coding)</option>
+                    <option value="classification">Clasificación rápida (classification)</option>
+                    <option value="architecture">Arquitectura (architecture)</option>
+                    <option value="independent_review">Revisión independiente (independent_review)</option>
+                    <option value="security_audit">Auditoría de seguridad (security_audit)</option>
+                  </select>
+                </label>
+                <label class="ctrl-field" style="flex:0 0 auto;flex-direction:row;align-items:center;gap:6px;padding-bottom:7px;">
+                  <input id="router-sim-avoid-swap" type="checkbox" checked />
+                  <span>Evitar Swap en VRAM (8 GB)</span>
+                </label>
+                <button id="run-router-sim-btn" class="btn btn-primary">Calcular Ruta Óptima →</button>
+              </div>
+              <div id="router-sim-output" class="subpanel">Selecciona una especialidad y pulsa "Calcular Ruta Óptima" para inspeccionar el modelo titular, puntuación verificable y cadena de fallback.</div>
+            </div>
+            <div class="card">
+              <h2>PUNTUACIÓN VERIFICABLE POR ESPECIALIDAD (0–100)</h2>
+              <div id="specialty-scores-table" class="table-wrap"></div>
+            </div>
+            <div class="card">
+              <h2>MATRIZ DE EVALUACIÓN (12 MÉTRICAS POR MODELO)</h2>
+              <div id="model-intel-table" class="table-wrap"></div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 3: WORKFLOW ORCHESTRATION (DAG) -->
+          <section id="view-workflows" class="view">
+            <div class="view-header">
+              <div>
+                <h1>3. WORKFLOW ORCHESTRATION (DAG &amp; EXECUTION TRACES)</h1>
+                <p class="view-sub">Orquestación de grafos acíclicos dirigidos (DAG) vía DeepSeek Harness ACP / OpenCode con serialización GPU.</p>
+              </div>
+              <button id="run-sample-dag-btn" class="btn btn-execute">▶ Ejecutar Workflow DAG Verificado</button>
+            </div>
+            <div class="card">
+              <h2>GRAFO DE DEPENDENCIAS DAG ACTIVO (ORDEN TOPOLÓGICO)</h2>
+              <div id="dag-visual-flow" class="dag-flow"></div>
+            </div>
+            <div class="card">
+              <h2>EXECUTION TRACES (REGISTRO APPEND-ONLY DE EVENTOS ACP / SUBAGENTES)</h2>
+              <div id="harness-traces-list" class="compact-list"></div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 4: TASK BOARD -->
+          <section id="view-taskboard" class="view">
+            <div class="view-header">
+              <div>
+                <h1>4. TASK BOARD (DEPENDENCIAS Y ESTADOS DE SUBTAREAS)</h1>
+                <p class="view-sub">Tablero de subtareas vinculado a sesiones persistentes de OpenCode sin duplicación de estado.</p>
+              </div>
+            </div>
+            <div class="four-col-board">
+              <div class="board-col">
+                <div class="board-col-head"><span>PENDING / READY</span><span id="cnt-tb-pending" class="tag">0</span></div>
+                <div id="col-tb-pending" class="compact-list"></div>
+              </div>
+              <div class="board-col">
+                <div class="board-col-head"><span>IN PROGRESS</span><span id="cnt-tb-running" class="tag tag-warn">0</span></div>
+                <div id="col-tb-running" class="compact-list"></div>
+              </div>
+              <div class="board-col">
+                <div class="board-col-head"><span>DONE / RECOVERED</span><span id="cnt-tb-done" class="tag tag-ok">0</span></div>
+                <div id="col-tb-done" class="compact-list"></div>
+              </div>
+              <div class="board-col">
+                <div class="board-col-head"><span>FAILED / BLOCKED</span><span id="cnt-tb-failed" class="tag tag-err">0</span></div>
+                <div id="col-tb-failed" class="compact-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 5: SESSION INSPECTOR -->
           <section id="view-sessions" class="view">
             <div class="view-header">
               <div>
-                <h1>SESIONES Y CONVERSACIONES</h1>
-                <p class="view-sub">Historial real, mensajes, bloques de código, diffs y delegaciones multiagente.</p>
+                <h1>5. SESSION INSPECTOR</h1>
+                <p class="view-sub">Historial real de ejecuciones, mensajes, bloques de código, herramientas invocadas y evidencia de pruebas.</p>
               </div>
             </div>
             <div class="split-layout">
@@ -192,12 +308,185 @@
             </div>
           </section>
 
+          <!-- MÓDULO 6: MEMORY EXPLORER -->
+          <section id="view-memory" class="view">
+            <div class="view-header">
+              <div>
+                <h1>6. MEMORY EXPLORER (MEMORIA JERÁRQUICA 4 NIVELES)</h1>
+                <p class="view-sub">Sesión · Proyecto · Experiencias · Usuario — Con procedencia, fecha, contexto, confianza y deduplicación.</p>
+              </div>
+            </div>
+            <div id="memory-tiers-metrics" class="metrics-grid"></div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>BUSCADOR DE RECUERDOS RELEVANTES (FILTRO ANTI-RUIDO)</h2>
+                <div class="composer-controls">
+                  <label class="ctrl-field" style="flex:3">
+                    <span>CONSULTA SEMÁNTICA / LÉXICA</span>
+                    <input id="memory-search-input" type="text" placeholder="Ej. RTX 4060 VRAM, ADR arquitectura, ECONNRESET Ollama..." />
+                  </label>
+                  <button id="memory-search-btn" class="btn btn-primary">Buscar</button>
+                </div>
+                <div id="memory-search-results" class="compact-list" style="margin-top:10px;"></div>
+              </div>
+              <div class="card">
+                <h2>REGISTRAR CONOCIMIENTO VERIFICADO (DEDUPLICADO)</h2>
+                <div class="composer-controls">
+                  <label class="ctrl-field">
+                    <span>NIVEL</span>
+                    <select id="mem-add-tier">
+                      <option value="experience">Experiencia (experience)</option>
+                      <option value="project">Proyecto (project)</option>
+                      <option value="session">Sesión (session)</option>
+                      <option value="user">Usuario (user)</option>
+                    </select>
+                  </label>
+                  <label class="ctrl-field">
+                    <span>CATEGORÍA</span>
+                    <select id="mem-add-cat">
+                      <option value="proven_solution">Solución comprobada</option>
+                      <option value="architectural_decision">Decisión arquitectónica (ADR)</option>
+                      <option value="recurring_error">Error recurrente</option>
+                      <option value="verified_execution">Ejecución verificada</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="composer-controls">
+                  <label class="ctrl-field" style="flex:2">
+                    <span>TÍTULO</span>
+                    <input id="mem-add-title" type="text" placeholder="Título conciso del recuerdo..." />
+                  </label>
+                  <label class="ctrl-field" style="flex:3">
+                    <span>CONTENIDO Y EVIDENCIA</span>
+                    <input id="mem-add-content" type="text" placeholder="Descripción verificada con ruta o comando..." />
+                  </label>
+                  <button id="memory-store-btn" class="btn btn-execute">Guardar</button>
+                </div>
+                <div id="memory-store-msg" class="view-sub" style="margin-top:6px;"></div>
+              </div>
+            </div>
+            <div class="card">
+              <h2>RECUERDOS JERÁRQUICOS RECIENTES (PROCEDENCIA, CONFIANZA Y RECURRENCIA)</h2>
+              <div id="memory-recent-list" class="compact-list"></div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 7: PERFORMANCE LAB -->
+          <section id="view-performance" class="view">
+            <div class="view-header">
+              <div>
+                <h1>7. PERFORMANCE LAB (GPU / VRAM / RAM / TOKENS)</h1>
+                <p class="view-sub">Telemetría en tiempo real de NVIDIA RTX 4060 Laptop (8188 MiB VRAM), AMD Ryzen 9 7940HS, Ollama y consumo de tokens.</p>
+              </div>
+            </div>
+            <div class="card">
+              <h2>MÉTRICAS EN VIVO (GPU / VRAM / CPU / RAM / TOKENS)</h2>
+              <div id="perf-hw-grid" class="metrics-grid"></div>
+              <div id="perf-vram-bar-wrap" class="vram-bar-wrap"></div>
+              <div id="perf-ollama-ps" class="subpanel"></div>
+            </div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>MODELOS LOCALES INSTALADOS EN OLLAMA</h2>
+                <div id="ollama-models-table" class="table-wrap"></div>
+              </div>
+              <div class="card">
+                <h2>CONSUMO ACUMULADO DE TOKENS</h2>
+                <div id="token-breakdown-grid" class="metrics-grid"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 8: SECURITY CENTER -->
+          <section id="view-security" class="view">
+            <div class="view-header">
+              <div>
+                <h1>8. SECURITY CENTER (CONTROLES P0, WORKTREES Y AUDITORÍA)</h1>
+                <p class="view-sub">Estado de autenticación 256-bit, protección CSRF/DNS Rebinding, aislamiento Git Worktree y bitácora de auditoría.</p>
+              </div>
+            </div>
+            <div id="security-posture-grid" class="metrics-grid"></div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>BITÁCORA DE AUDITORÍA EN TIEMPO REAL (AUDIT.LOG)</h2>
+                <div id="security-audit-list" class="compact-list"></div>
+              </div>
+              <div class="card">
+                <h2>GIT WORKTREES ACTIVOS &amp; POLÍTICAS DE SECRETOS</h2>
+                <div id="security-worktrees-list" class="compact-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 9: BENCHMARK CENTER -->
+          <section id="view-benchmarks" class="view">
+            <div class="view-header">
+              <div>
+                <h1>9. BENCHMARK CENTER (RTX 4060 &amp; SONDAS EN VIVO)</h1>
+                <p class="view-sub">Comparación de modelos (tok/s, TTFT, VRAM MiB, calidad de código) y ejecución de sondas verificables en vivo.</p>
+              </div>
+            </div>
+            <div class="card">
+              <h2>EJECUTAR SONDA DE EVALUACIÓN EN VIVO (MODEL PROBE)</h2>
+              <div class="composer-controls">
+                <label class="ctrl-field">
+                  <span>MODELO A EVALUAR</span>
+                  <select id="probe-model-select">
+                    <option value="qwen3.5:9b">qwen3.5:9b (Titular Coding/Arch)</option>
+                    <option value="qwen3.5:4b">qwen3.5:4b (Titular Clasificación)</option>
+                    <option value="abliterant/qwen3.5-rana:9b">abliterant/qwen3.5-rana:9b (Titular Seguridad)</option>
+                    <option value="qwen3:8b">qwen3:8b (Fallback)</option>
+                  </select>
+                </label>
+                <button id="run-live-probe-btn" class="btn btn-execute">▶ Lanzar Sonda Verificable</button>
+              </div>
+              <pre id="live-probe-output" class="code-block">Selecciona un modelo y pulsa "Lanzar Sonda Verificable" para medir generación de código, test pass rate, tok/s, TTFT y VRAM en vivo.</pre>
+            </div>
+            <div class="card">
+              <h2>BENCHMARKS DE REFERENCIA RTX 4060 (TOK/S, TTFT &amp; VRAM)</h2>
+              <div id="benchmarks-table" class="table-wrap"></div>
+            </div>
+          </section>
+
+          <!-- MÓDULO 10: INTEGRATION MANAGER -->
+          <section id="view-integrations" class="view">
+            <div class="view-header">
+              <div>
+                <h1>10. INTEGRATION MANAGER (GENTLE AI · HARNESS ACP · MCP · PLUGINS)</h1>
+                <p class="view-sub">Control centralizado de Gentle AI v4.5.0, adaptador desacoplado DeepSeek Harness ACP, MCPs, DBHub, Plugins y Skills.</p>
+              </div>
+              <button id="toggle-harness-btn" class="btn btn-primary">Alternar DeepSeek Harness ACP</button>
+            </div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>GENTLE AI 4.5.0 &amp; DEEPSEEK HARNESS ACP</h2>
+                <div id="integrations-core-list" class="compact-list"></div>
+              </div>
+              <div class="card">
+                <h2>SERVIDORES MCP &amp; PROVEEDORES</h2>
+                <div id="mcp-list" class="cards-grid"></div>
+                <div id="providers-list" class="compact-list" style="margin-top:10px;"></div>
+              </div>
+            </div>
+            <div class="two-col-grid">
+              <div class="card">
+                <h2>PLUGINS OPENCODE &amp; TUI</h2>
+                <div id="plugins-list" class="cards-grid"></div>
+              </div>
+              <div class="card">
+                <h2>SKILLS &amp; BASES DE DATOS (DBHUB)</h2>
+                <div id="skills-list" class="compact-list"></div>
+                <div id="databases-list" class="cards-grid" style="margin-top:10px;"></div>
+              </div>
+            </div>
+          </section>
+
           <!-- VISTA: PROYECTOS -->
           <section id="view-projects" class="view">
             <div class="view-header">
               <div>
                 <h1>EXPLORADOR DE PROYECTOS</h1>
-                <p class="view-sub">Espacios de trabajo detectados en OpenCode (OpenCiber, Default Project, Saghet, etc.).</p>
+                <p class="view-sub">Espacios de trabajo detectados y validados en OpenCode.</p>
               </div>
               <button id="toggle-add-project-btn" class="btn btn-primary">+ Añadir proyecto</button>
             </div>
@@ -220,84 +509,6 @@
               <input id="projects-search" type="text" placeholder="⌕ Buscar proyectos por nombre o ruta..." style="width: 100%;" />
             </div>
             <div id="projects-grid" class="cards-grid"></div>
-          </section>
-
-          <!-- VISTA: AGENTES -->
-          <section id="view-agents" class="view">
-            <div class="view-header">
-              <h1>MATRIZ DE AGENTES (13 ESPECIALISTAS)</h1>
-              <p class="view-sub">Estado operativo, modelo asignado, modo de ejecución y matriz de permisos.</p>
-            </div>
-            <div id="agents-cards-grid" class="cards-grid"></div>
-          </section>
-
-          <!-- VISTA: OLLAMA, MODELOS Y RENDIMIENTO -->
-          <section id="view-performance" class="view">
-            <div class="view-header">
-              <h1>OLLAMA, MODELOS LOCALES Y RENDIMIENTO</h1>
-              <p class="view-sub">Telemetría real de RTX 4060 (8 GB VRAM), CPU Ryzen 9 7940HS, RAM y benchmarks.</p>
-            </div>
-            <div class="card">
-              <h2>MÉTRICAS EN VIVO (GPU / VRAM / CPU / RAM)</h2>
-              <div id="perf-hw-grid" class="metrics-grid"></div>
-              <div id="perf-vram-bar-wrap" class="vram-bar-wrap"></div>
-              <div id="perf-ollama-ps" class="subpanel"></div>
-            </div>
-            <div class="two-col-grid">
-              <div class="card">
-                <h2>MODELOS LOCALES EN OLLAMA</h2>
-                <div id="ollama-models-table" class="table-wrap"></div>
-              </div>
-              <div class="card">
-                <h2>BENCHMARKS RTX 4060 (TOK/S &amp; VRAM)</h2>
-                <div id="benchmarks-table" class="table-wrap"></div>
-              </div>
-            </div>
-          </section>
-
-          <!-- VISTA: PLUGINS -->
-          <section id="view-plugins" class="view">
-            <div class="view-header">
-              <h1>PLUGINS OPENCODE &amp; TUI</h1>
-              <p class="view-sub">Extensiones fijadas en compatibility.json y plugin TUI nativo.</p>
-            </div>
-            <div id="plugins-list" class="cards-grid"></div>
-          </section>
-
-          <!-- VISTA: HERRAMIENTAS & SKILLS -->
-          <section id="view-tools" class="view">
-            <div class="view-header">
-              <h1>HERRAMIENTAS, SKILLS Y PROVEEDORES</h1>
-              <p class="view-sub">Skills desplegadas en ~/.config/opencode/skills/ y proveedores configurados.</p>
-            </div>
-            <div class="two-col-grid">
-              <div class="card">
-                <h2>SKILLS SAGHET</h2>
-                <div id="skills-list" class="compact-list"></div>
-              </div>
-              <div class="card">
-                <h2>PROVEEDORES ACTIVOS</h2>
-                <div id="providers-list" class="compact-list"></div>
-              </div>
-            </div>
-          </section>
-
-          <!-- VISTA: BASES DE DATOS -->
-          <section id="view-databases" class="view">
-            <div class="view-header">
-              <h1>BASES DE DATOS (DBHUB MCP)</h1>
-              <p class="view-sub">Fuentes declaradas en ~/.config/opencode/dbhub.toml (sin exposición de credenciales).</p>
-            </div>
-            <div id="databases-list" class="cards-grid"></div>
-          </section>
-
-          <!-- VISTA: MCP -->
-          <section id="view-mcp" class="view">
-            <div class="view-header">
-              <h1>SERVIDORES MCP (MODEL CONTEXT PROTOCOL)</h1>
-              <p class="view-sub">Estado de servidores MCP integrados en OpenCode-Saghet.</p>
-            </div>
-            <div id="mcp-list" class="cards-grid"></div>
           </section>
 
           <!-- VISTA: CONFIGURACIÓN -->
@@ -353,7 +564,7 @@
             <div class="view-header">
               <div>
                 <h1>DIAGNÓSTICO DEL SISTEMA (DOCTOR)</h1>
-                <p class="view-sub">Ejecución en vivo de doctor.sh sobre Garuda Linux, GPU, Ollama y seguridad.</p>
+                <p class="view-sub">Ejecución en vivo de doctor.sh sobre Garuda Linux, GPU, Ollama, Gentle AI y seguridad P0.</p>
               </div>
               <button id="run-doctor-btn" class="btn btn-primary">Ejecutar Diagnóstico</button>
             </div>
@@ -361,33 +572,12 @@
               <pre id="diagnostics-output" class="code-block">Pulsa "Ejecutar Diagnóstico" para validar el estado completo del sistema...</pre>
             </div>
           </section>
-
-          <!-- VISTA: ACERCA DE SAGHET -->
-          <section id="view-about" class="view">
-            <div class="view-header">
-              <h1>ACERCA DE OPENCODE-SAGHET</h1>
-              <p class="view-sub">Distribución Local-First de desarrollo con IA — Identidad Matrix Protocol.</p>
-            </div>
-            <div class="card about-card">
-              <img src="/assets/matrix/saghet-logo.svg" alt="Saghet Logo" class="about-logo" />
-              <p>
-                <strong>OpenCode-Saghet // Matrix Protocol</strong> integra OpenCode v2.3.2, Ollama local,
-                13 agentes especializados, MCPs fijados y telemetría CUDA en tiempo real para hardware RTX 4060 (8 GB VRAM).
-              </p>
-              <div class="metrics-grid">
-                <div class="metric"><div class="metric-label">Motor Base</div><div class="metric-value">OpenCode v2.3.2</div></div>
-                <div class="metric"><div class="metric-label">SO Objetivo</div><div class="metric-value">Garuda / Arch Linux</div></div>
-                <div class="metric"><div class="metric-label">GPU Perfil</div><div class="metric-value">RTX 4060 8GB</div></div>
-                <div class="metric"><div class="metric-label">Regla VRAM</div><div class="metric-value">1 Modelo Activo</div></div>
-              </div>
-            </div>
-          </section>
         </main>
 
         <!-- D. PANEL DERECHO (TELEMETRÍA Y AGENTES) -->
         <aside id="right-hud" class="right-hud" aria-label="Panel de telemetría y agentes">
           <div class="hud-section">
-            <div class="hud-title">ESTADO DE AGENTES</div>
+            <div class="hud-title">ESTADO DE AGENTES (17)</div>
             <div id="hud-agent-counts" class="hud-counts"></div>
           </div>
 

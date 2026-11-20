@@ -38,6 +38,7 @@ from scripts.harness.workflow_engine import HarnessTaskBoard, HarnessWorkflowEng
 from scripts.memory.hierarchical_memory import HierarchicalMemoryStore
 from scripts.supervisor.gentle_ai_bridge import get_gentle_ai_status
 from scripts.supervisor.quality_supervisor import QualitySupervisor, get_decisions
+from scripts.supervisor.worktree_manager import list_worktrees
 ASSETS_DIR = REPO_DIR / "assets"
 OPENCODE_CONFIG_DIR = Path.home() / ".config" / "opencode"
 OPENCODE_DB_PATH = Path.home() / ".local" / "share" / "opencode" / "opencode.db"
@@ -756,15 +757,25 @@ def collect_telemetry():
         "databases": get_db_sources(),
         "benchmarks": get_benchmarks(),
         "token_totals": token_totals,
+        "evaluation_matrix": load_evaluation_matrix(),
         "security": {
             "auth_enabled": True,
             "csrf_protection": True,
             "dns_rebinding_guard": True,
             "max_concurrent_jobs": MAX_CONCURRENT_JOBS,
+            "audit_events": get_recent_audit_events(25),
+            "worktrees": list_worktrees(REPO_DIR),
         },
         "gentle_ai": get_gentle_ai_status(REPO_DIR),
         "supervisor": {
             "recent_decisions": len(get_decisions(30)),
+            "decisions": get_decisions(20),
+        },
+        "memory": HierarchicalMemoryStore().get_summary(),
+        "harness": {
+            "status": DecoupledACPAdapter().get_status(),
+            "task_board": HarnessTaskBoard().list_tasks()[:30],
+            "traces": get_execution_traces(limit=30),
         },
     }
 

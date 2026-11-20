@@ -660,6 +660,53 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             self.assertEqual(wf_fail["nodes"]["b2_dep"]["status"], "BLOCKED")
             self.assertEqual(wf_fail["nodes"]["b3_indep"]["status"], "DONE")
 
+    def test_l_phase6_matrix_control_center_10_modules(self):
+        import time
+
+        html = (REPO_DIR / "dashboard" / "index.html").read_text(encoding="utf-8")
+        required_views = [
+            "view-agents",
+            "view-model-intelligence",
+            "view-workflows",
+            "view-taskboard",
+            "view-sessions",
+            "view-memory",
+            "view-performance",
+            "view-security",
+            "view-benchmarks",
+            "view-integrations",
+        ]
+        for vid in required_views:
+            self.assertIn(f'id="{vid}"', html, f"Falta módulo visual {vid} en dashboard/index.html")
+
+        # Validate JavaScript syntax of app.js and matrix-rain.js
+        for js_file in ("app.js", "matrix-rain.js"):
+            chk = subprocess.run(["node", "--check", str(REPO_DIR / "dashboard" / js_file)], capture_output=True, text=True)
+            self.assertEqual(chk.returncode, 0, chk.stderr)
+
+        # Verify live index CSRF injection and unified telemetry for all 10 modules
+        proc = subprocess.Popen(
+            ["python3", str(REPO_DIR / "dashboard" / "server.py"), "--port", "4784"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            time.sleep(0.8)
+            with urllib.request.urlopen("http://127.0.0.1:4784/", timeout=5) as r:
+                index_html = r.read().decode("utf-8")
+                cookie_hdr = r.headers.get("Set-Cookie") or ""
+            self.assertIn('name="saghet-csrf-token"', index_html)
+            self.assertIn("HttpOnly", cookie_hdr)
+            self.assertIn("SameSite=Strict", cookie_hdr)
+
+            with urllib.request.urlopen("http://127.0.0.1:4784/api/telemetry", timeout=5) as r:
+                tel = json.loads(r.read().decode("utf-8"))
+            for key in ("evaluation_matrix", "supervisor", "memory", "harness", "security", "token_totals"):
+                self.assertIn(key, tel, f"Falta bloque {key} en /api/telemetry para los 10 módulos")
+        finally:
+            proc.terminate()
+            proc.wait(timeout=5)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
