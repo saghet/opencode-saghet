@@ -96,9 +96,11 @@ OpenCode-Saghet/
 ├── scripts/
 │   ├── opencode-saghet                       # Lanzador CLI + Control Center + Desktop Wrapper
 │   ├── build-desktop-matrix.sh               # Wrapper Electron Matrix sin tocar app.asar
-│   ├── supervisor/                           # Fase 2: Supervisión Inteligente y Gentle AI
+│   ├── configure-ollama-ctx.sh               # Configurador idempotente num_ctx=24576 (qwen3.5) y anti-bucle deepseek-r1
+│   ├── supervisor/                           # Fase 2 + Hotfix: Supervisión Inteligente, Gentle AI y Diagnóstico en Vivo
 │   │   ├── gentle_ai_bridge.py
 │   │   ├── quality_supervisor.py
+│   │   ├── session_diagnostics.py            # Auditoría RO de opencode.db, sockets :11434 y opencode-mem
 │   │   └── worktree_manager.py
 │   ├── eval/                                 # Fase 3: Laboratorio de Evaluación y SmartModelRouter
 │   │   └── model_lab.py
@@ -121,7 +123,7 @@ OpenCode-Saghet/
 │   ├── saghet_intelligence_benchmarks.json   # Resultados verificados de los 10 benchmarks reales (10/10)
 │   └── matrix_ui_perf.json                   # Rendimiento de renderizado UI
 ├── tests/
-│   ├── run_acceptance.py                     # Suite de aceptación integral (14 categorías A-N)
+│   ├── run_acceptance.py                     # Suite de aceptación integral (15 pruebas A-O)
 │   └── benchmarks/
 │       └── run_intelligence_benchmarks.py    # Laboratorio reproducible de 10 escenarios aislados
 └── docs/
