@@ -8,8 +8,8 @@
   "compress": {
     "permission": "deny",
     "mode": "range",
-    "minContextLimit": 6500,
-    "maxContextLimit": 13500,
+    "minContextLimit": 9000,
+    "maxContextLimit": 19500,
     "protectUserMessages": true
   },
   "strategies": {
