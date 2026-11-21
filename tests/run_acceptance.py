@@ -209,6 +209,10 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             r1_lim = oc_cfg["provider"]["ollama"]["models"][r1_id]["limit"]
             self.assertEqual(r1_lim["context"], 16384)
             self.assertLessEqual(r1_lim["output"], 2048)
+
+        r1_mf = subprocess.check_output(["ollama", "show", "deepseek-r1:8b", "--modelfile"], text=True, timeout=5)
+        self.assertIn("PARAMETER num_predict 2048", r1_mf)
+        self.assertIn("PARAMETER repeat_penalty 1.15", r1_mf)
         self.assertEqual(dcp_cfg["strategies"]["purgeErrors"]["turns"], 2)
 
         mem_cfg = json.loads((CFG_DIR / "opencode-mem.jsonc").read_text(encoding="utf-8"))
