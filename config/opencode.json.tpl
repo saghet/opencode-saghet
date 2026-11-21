@@ -546,6 +546,7 @@
       "sqlite3 *truncate*": "ask",
       "ssh": "ask",
       "ssh *": "ask",
+      "sudo *": "ask",
       "sudo chmod -R 777*": "deny",
       "sudo chown -R *": "deny",
       "sudo find *-delete*": "ask",

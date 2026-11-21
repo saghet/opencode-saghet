@@ -103,8 +103,8 @@ def check_ollama_socket_health() -> dict:
 
     return {
         "active_connections": active_conns,
-        "zombie_queue_detected": active_conns > 2,
-        "status": "WARNING" if active_conns > 2 else "HEALTHY",
+        "zombie_queue_detected": active_conns > 5,
+        "status": "WARNING" if active_conns > 5 else "HEALTHY",
     }
 
 
@@ -422,7 +422,7 @@ def analyze_recent_sessions(
         )
     if compaction_storms or amnesia_events:
         recommendations.append(
-            f"Detectadas {len(compaction_storms)} tormenta(s) de compactación y {len(amnesia_events)} evento(s) de amnesia histórica; mitigado con ventana 24k (output 2048), DCP 9k-19.5k y regla OBJETIVO INMUTABLE."
+            f"Detectadas {len(compaction_storms)} tormenta(s) de compactación y {len(amnesia_events)} evento(s) de amnesia histórica; mitigado con ventana física 24576 / OpenCode 22528 (output 2560), DCP 8.5k-18k y regla OBJETIVO INMUTABLE."
         )
     if error_counts_by_type.get("skill_agent_confusion"):
         recommendations.append(
