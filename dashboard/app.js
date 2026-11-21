@@ -250,6 +250,13 @@ function renderNotifications(data) {
   if (failed.length) {
     alerts.push({ level: "warn", text: `${failed.length} sesión(es) reciente(s) finalizaron con error.` });
   }
+  const diag = data.session_diagnostics || data.supervisor?.session_diagnostics;
+  if (diag?.ollama_socket_health?.zombie_queue_detected) {
+    alerts.push({
+      level: "err",
+      text: `Cola zombi detectada en Ollama (:11434): ${diag.ollama_socket_health.active_connections} conexiones activas.`,
+    });
+  }
   if (!alerts.length) {
     alerts.push({ level: "ok", text: "Todos los servicios (OpenCode, Ollama, GPU, Gentle AI, Harness ACP) operan normalmente." });
   }
@@ -304,9 +311,18 @@ function renderAgentCommandCenter(data) {
   }
 
   const decisions = data.supervisor?.decisions || [];
+  const diag = data.session_diagnostics || data.supervisor?.session_diagnostics || {};
   const supEl = document.getElementById("supervisor-decisions-list");
   if (supEl) {
-    supEl.innerHTML = decisions.length
+    const diagHeader = `<div class="list-row">
+      <span>
+        <strong>Diagnóstico de Sesiones en Vivo</strong> · Sockets Ollama: <code>${diag.ollama_socket_health?.active_connections ?? 0}</code>
+        · AutoCapture Mitigado: <code>${diag.opencode_mem_health?.mitigated ? "SÍ" : "NO"}</code>
+        <br><small>Compactaciones excesivas: ${diag.compaction_storms?.length ?? 0} · Amnesia histórica: ${diag.amnesia_events?.length ?? 0} · Errores tool: ${diag.tool_execution_errors?.length ?? 0}</small>
+      </span>
+      <span class="tag ${diag.health_status === "CRITICAL" ? "tag-err" : "tag-ok"}">${esc(diag.health_status || "HEALTHY")}</span>
+    </div>`;
+    const decisionsHtml = decisions.length
       ? decisions
           .slice(0, 10)
           .map((d) => {
@@ -324,6 +340,7 @@ function renderAgentCommandCenter(data) {
           })
           .join("")
       : `<div class="empty-state">Sin decisiones registradas en el Supervisor.</div>`;
+    supEl.innerHTML = diagHeader + decisionsHtml;
   }
 }
 

@@ -821,6 +821,119 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         self.assertIn("gentle_ai", compat["pinned_components"])
         self.assertFalse(compat["pinned_components"]["deepseek_harness_adapter"]["cordis_in_core"])
 
+    def test_o_hotfix_phase3_session_diagnostics_engine(self):
+        import contextlib
+        import sqlite3
+        import sys
+
+        if str(REPO_DIR) not in sys.path:
+            sys.path.insert(0, str(REPO_DIR))
+
+        from scripts.supervisor.session_diagnostics import analyze_recent_sessions
+
+        with tempfile.TemporaryDirectory(prefix="saghet_diag_test_") as tmp:
+            tmp_db = Path(tmp) / "opencode_test.db"
+            with contextlib.closing(sqlite3.connect(str(tmp_db))) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE session_v2 (
+                        id TEXT PRIMARY KEY,
+                        parent_id TEXT,
+                        title TEXT,
+                        agent TEXT,
+                        model TEXT,
+                        directory TEXT,
+                        idle_outcome TEXT,
+                        time_created INTEGER,
+                        time_updated INTEGER
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE session_message (
+                        id TEXT PRIMARY KEY,
+                        session_id TEXT,
+                        type TEXT,
+                        seq INTEGER,
+                        time_created INTEGER,
+                        time_updated INTEGER,
+                        data TEXT
+                    )
+                    """
+                )
+                now_ms = 1776729000000
+                # 1. Root session with compaction storm + tool errors
+                conn.execute(
+                    "INSERT INTO session_v2 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    ("ses_root_1", None, "Root Test Session", "saghet-orchestrator", "ollama/qwen3.5:9b", "/tmp/proj", "succeeded", now_ms - 60000, now_ms),
+                )
+                # 2. Stalled child session (idle_outcome IS NULL)
+                conn.execute(
+                    "INSERT INTO session_v2 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    ("ses_child_stalled", "ses_root_1", "Stalled Subagent", "senior-developer", "ollama/qwen3.5:9b", "/tmp/proj", None, now_ms - 30000, None),
+                )
+
+                # 3 compaction rows (1 with amnesia)
+                for idx in range(3):
+                    summary_txt = (
+                        "## Objective\n- (none) - No task has been assigned yet"
+                        if idx == 1
+                        else "## Objective\n- Normal summary"
+                    )
+                    conn.execute(
+                        "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (
+                            f"msg_comp_{idx}",
+                            "ses_root_1",
+                            "compaction",
+                            idx + 1,
+                            now_ms - 10000 + idx,
+                            now_ms - 10000 + idx,
+                            json.dumps({"summary": summary_txt}),
+                        ),
+                    )
+
+                # Assistant message with skill_agent_confusion and webfetch_invalid_json_format errors
+                bad_tools_payload = {
+                    "agent": "saghet-orchestrator",
+                    "content": [
+                        {
+                            "type": "tool",
+                            "name": "skill",
+                            "state": {
+                                "status": "error",
+                                "input": {"id": "researcher"},
+                                "error": {"message": "Unable to load skill researcher"},
+                            },
+                        },
+                        {
+                            "type": "tool",
+                            "name": "webfetch",
+                            "state": {
+                                "status": "error",
+                                "input": {"url": "https://api.github.com", "format": "json"},
+                                "error": {"message": "Invalid arguments for tool webfetch"},
+                            },
+                        },
+                    ],
+                }
+                conn.execute(
+                    "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    ("msg_err_1", "ses_root_1", "assistant", 10, now_ms, now_ms, json.dumps(bad_tools_payload)),
+                )
+                conn.commit()
+
+            diag = analyze_recent_sessions(db_path=tmp_db, limit_sessions=10)
+            self.assertEqual(len(diag["stalled_sessions"]), 1)
+            self.assertEqual(diag["stalled_sessions"][0]["session_id"], "ses_child_stalled")
+            self.assertEqual(len(diag["compaction_storms"]), 1)
+            self.assertEqual(diag["compaction_storms"][0]["compaction_count"], 3)
+            self.assertEqual(len(diag["amnesia_events"]), 1)
+            self.assertEqual(diag["error_counts_by_type"].get("skill_agent_confusion"), 1)
+            self.assertEqual(diag["error_counts_by_type"].get("webfetch_invalid_json_format"), 1)
+            self.assertTrue(diag["opencode_mem_health"]["mitigated"])
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

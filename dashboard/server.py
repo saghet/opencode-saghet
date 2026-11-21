@@ -38,6 +38,7 @@ from scripts.harness.workflow_engine import HarnessTaskBoard, HarnessWorkflowEng
 from scripts.memory.hierarchical_memory import HierarchicalMemoryStore
 from scripts.supervisor.gentle_ai_bridge import get_gentle_ai_status
 from scripts.supervisor.quality_supervisor import QualitySupervisor, get_decisions
+from scripts.supervisor.session_diagnostics import analyze_recent_sessions
 from scripts.supervisor.worktree_manager import list_worktrees
 ASSETS_DIR = REPO_DIR / "assets"
 OPENCODE_CONFIG_DIR = Path.home() / ".config" / "opencode"
@@ -728,6 +729,8 @@ def collect_telemetry():
             "last_updated": int(time.time() * 1000),
         }
 
+    session_diag = analyze_recent_sessions(limit_sessions=12)
+
     return {
         "opencode_server_up": opencode_up,
         "opencode_mem_up": mem_up,
@@ -770,7 +773,9 @@ def collect_telemetry():
         "supervisor": {
             "recent_decisions": len(get_decisions(30)),
             "decisions": get_decisions(20),
+            "session_diagnostics": session_diag,
         },
+        "session_diagnostics": session_diag,
         "memory": HierarchicalMemoryStore().get_summary(),
         "harness": {
             "status": DecoupledACPAdapter().get_status(),
@@ -928,8 +933,13 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     "ok": True,
                     "gentle_ai": get_gentle_ai_status(REPO_DIR),
                     "decisions": get_decisions(50),
+                    "session_diagnostics": analyze_recent_sessions(limit_sessions=15),
                 },
             )
+            return
+
+        if parsed.path == "/api/supervisor/session-health":
+            self._send_json(200, {"ok": True, **analyze_recent_sessions(limit_sessions=15)})
             return
 
         if parsed.path == "/api/models/evaluation":
