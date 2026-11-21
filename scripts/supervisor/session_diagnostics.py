@@ -395,6 +395,22 @@ def analyze_recent_sessions(
                                     "output_tokens": out_tok,
                                 }
                             )
+                        elif d.get("finish") == "length" and out_tok >= 2000:
+                            content_items = d.get("content") or []
+                            text_len = sum(len(str(c.get("text") or "")) for c in content_items if isinstance(c, dict) and c.get("type") == "text")
+                            reason_len = sum(len(str(c.get("text") or "")) for c in content_items if isinstance(c, dict) and c.get("type") == "reasoning")
+                            if text_len == 0 and reason_len > 0:
+                                output_limit_truncations.append(
+                                    {
+                                        "session_id": sid,
+                                        "message_id": r["id"],
+                                        "kind": "reasoning_starvation_no_tools",
+                                        "agent": d.get("agent") or session_map[sid].get("agent") or "unknown",
+                                        "input_tokens": int(toks.get("input") or 0),
+                                        "output_tokens": out_tok,
+                                        "reasoning_chars": reason_len,
+                                    }
+                                )
         except Exception:
             pass
 

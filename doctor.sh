@@ -131,10 +131,10 @@ else
 fi
 
 if command -v ollama >/dev/null 2>&1 && ollama list 2>/dev/null | awk 'NR>1 {print $1}' | grep -Fxq "deepseek-r1:8b"; then
-  if ollama show deepseek-r1:8b --modelfile 2>/dev/null | grep -q '^PARAMETER num_predict 2048'; then
-    ok "deepseek-r1:8b con límite anti-bucle (num_predict=2048, repeat_penalty=1.15)"
+  if ollama show deepseek-r1:8b --modelfile 2>/dev/null | grep -q '^PARAMETER num_predict 3072'; then
+    ok "deepseek-r1:8b con límite anti-bucle (num_predict=3072, repeat_penalty=1.15)"
   else
-    warn "deepseek-r1:8b sin PARAMETER num_predict 2048 (ejecuta scripts/configure-ollama-ctx.sh)"
+    warn "deepseek-r1:8b sin PARAMETER num_predict 3072 (ejecuta scripts/configure-ollama-ctx.sh)"
   fi
 fi
 
