@@ -411,6 +411,40 @@ def analyze_recent_sessions(
                                         "reasoning_chars": reason_len,
                                     }
                                 )
+
+                    # 4. Detectar cierres silenciosos prematuros (finish=stop sin texto ni herramientas)
+                    stop_rows = conn.execute(
+                        f"""
+                        SELECT session_id, id, seq, data
+                        FROM session_message
+                        WHERE session_id IN ({placeholders})
+                          AND type = 'assistant'
+                          AND (data LIKE '%"finish":"stop"%' OR data LIKE '%"finish": "stop"%')
+                        ORDER BY time_created DESC
+                        LIMIT 50
+                        """,
+                        sids,
+                    ).fetchall()
+
+                    for r in stop_rows:
+                        sid = r["session_id"]
+                        try:
+                            d = json.loads(r["data"] or "{}")
+                        except Exception:
+                            continue
+                        content_items = d.get("content") or []
+                        text_len = sum(len(str(c.get("text") or "").strip()) for c in content_items if isinstance(c, dict) and c.get("type") == "text")
+                        has_tool = any(isinstance(c, dict) and c.get("type") == "tool" for c in content_items)
+                        if d.get("finish") == "stop" and text_len == 0 and not has_tool:
+                            output_limit_truncations.append(
+                                {
+                                    "session_id": sid,
+                                    "message_id": r["id"],
+                                    "kind": "silent_premature_stop",
+                                    "agent": d.get("agent") or session_map[sid].get("agent") or "unknown",
+                                    "output_tokens": int((d.get("tokens") or {}).get("output") or 0),
+                                }
+                            )
         except Exception:
             pass
 
