@@ -991,6 +991,25 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
                         ),
                     ),
                 )
+                conn.execute(
+                    "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        "msg_silent_stop",
+                        "ses_root_1",
+                        "assistant",
+                        14,
+                        now_ms + 4,
+                        now_ms + 4,
+                        json.dumps(
+                            {
+                                "agent": "saghet-orchestrator",
+                                "finish": "stop",
+                                "tokens": {"input": 29, "output": 31},
+                                "content": [],
+                            }
+                        ),
+                    ),
+                )
                 conn.commit()
 
             diag = analyze_recent_sessions(db_path=tmp_db, limit_sessions=10)
@@ -1002,9 +1021,10 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             self.assertEqual(diag["error_counts_by_type"].get("skill_agent_confusion"), 1)
             self.assertEqual(diag["error_counts_by_type"].get("webfetch_invalid_json_format"), 1)
             self.assertEqual(diag["error_counts_by_type"].get("edit_oldstring_mismatch"), 1)
-            self.assertEqual(len(diag["output_limit_truncations"]), 3)
+            self.assertEqual(len(diag["output_limit_truncations"]), 4)
             kinds = {t["kind"] for t in diag["output_limit_truncations"]}
             self.assertIn("reasoning_starvation_no_tools", kinds)
+            self.assertIn("silent_premature_stop", kinds)
             self.assertTrue(diag["ollama_ctx_health"]["all_synced"])
             self.assertEqual(diag["ollama_ctx_health"]["models"].get("qwen3.5:9b"), 24576)
             self.assertTrue(diag["opencode_mem_health"]["mitigated"])
