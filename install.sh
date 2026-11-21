@@ -7,13 +7,15 @@ CFG_DIR="${HOME}/.config/opencode"
 BACKUP_DIR="${CFG_DIR}/backups/install_$(date +%Y%m%d_%H%M%S)"
 DRY_RUN=0
 SKIP_MODELS=0
+RESTART_SERVICE=0
 
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --skip-models) SKIP_MODELS=1 ;;
+    --restart-service) RESTART_SERVICE=1 ;;
     -h|--help)
-      echo "Uso: ./install.sh [--dry-run] [--skip-models]"
+      echo "Uso: ./install.sh [--dry-run] [--skip-models] [--restart-service]"
       exit 0
       ;;
   esac
@@ -169,7 +171,11 @@ fi
 
 log "7/8 Recargando OpenCode..."
 if [ "$DRY_RUN" -eq 0 ] && command -v opencode >/dev/null 2>&1; then
-  opencode reload >/dev/null 2>&1 || true
+  if [ "$RESTART_SERVICE" -eq 1 ]; then
+    opencode service restart >/dev/null 2>&1 || opencode reload >/dev/null 2>&1 || true
+  else
+    opencode reload >/dev/null 2>&1 || true
+  fi
 fi
 
 log "8/8 Ejecutando diagnóstico final..."

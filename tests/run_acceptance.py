@@ -193,9 +193,12 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         import time
         import urllib.error
 
-        # 1. Verify VRAM alignment in opencode-mem.jsonc and protectUserMessages in dcp.jsonc
+        # 1. Verify VRAM alignment in opencode-mem.jsonc and anti-compaction-storm settings in dcp.jsonc
         dcp_cfg = json.loads((CFG_DIR / "dcp.jsonc").read_text(encoding="utf-8"))
         self.assertTrue(dcp_cfg["compress"]["protectUserMessages"], "dcp.jsonc debe proteger mensajes del usuario")
+        self.assertEqual(dcp_cfg["compress"]["minContextLimit"], 6500)
+        self.assertEqual(dcp_cfg["compress"]["maxContextLimit"], 13500)
+        self.assertEqual(dcp_cfg["strategies"]["purgeErrors"]["turns"], 2)
 
         mem_cfg = json.loads((CFG_DIR / "opencode-mem.jsonc").read_text(encoding="utf-8"))
         self.assertEqual(mem_cfg["opencodeModel"], "qwen3.5:9b", "opencode-mem debe usar qwen3.5:9b para evitar colisión VRAM")
