@@ -1,4 +1,4 @@
-# OpenCode-Saghet // MATRIX PROTOCOL (Next-Gen Engineering Upgrade `v0.2.0`)
+# OpenCode-Saghet // MATRIX PROTOCOL (`v0.2.1-stability-hotfix`)
 
 Plataforma avanzada, local-first y autónoma de desarrollo con IA para **Garuda Linux y Arch Linux**, construida sobre **OpenCode v2.3.2**, **Gentle AI v4.5.0**, **Ollama 0.40.16**, **Saghet Matrix Control Center (10 módulos)** y **Adaptador Desacoplado DeepSeek Harness vía ACP**, optimizada para **NVIDIA GeForce RTX 4060 Laptop (8 GB VRAM)** y **32 GB RAM**.
 
@@ -21,6 +21,11 @@ Plataforma avanzada, local-first y autónoma de desarrollo con IA para **Garuda 
 6. **Saghet Matrix Control Center v2 (`dashboard/` — 10 Módulos + Seguridad P0):**
    - **10 Módulos:** *1. Agent Command Center*, *2. Model Intelligence*, *3. Workflow Orchestration (DAG)*, *4. Task Board*, *5. Session Inspector*, *6. Memory Explorer*, *7. Performance Lab*, *8. Security Center*, *9. Benchmark Center* y *10. Integration Manager*.
    - **Blindaje P0:** Token de 256 bits (`~/.config/opencode/.saghet-dashboard-token`), cookie `HttpOnly; SameSite=Strict`, protección CSRF y DNS Rebinding (`Host`/`Origin`), allowlists de agentes/directorios, control de grupos de procesos (`os.killpg`) y bitácora `audit.log`.
+7. **Estabilidad en Vivo, Contexto `24k` y Diagnóstico Proactivo (`v0.2.1-stability-hotfix`):**
+   - **Contexto físico `24576` (`24k`) en Ollama (`scripts/configure-ollama-ctx.sh`):** Alinea `qwen3.5:9b`, `qwen3.5:4b` y `abliterant/qwen3.5-rana:9b` a `num_ctx=24576` en GPU (`6.0 GB` / `6740 MiB` en RTX 4060) con colchón lógico `22528 / 2560` en OpenCode y DCP `8500–18000` (`protectUserMessages: true`), eliminando tormentas de compactación y truncamientos `output-limit`.
+   - **Protección Anti-Bucles `deepseek-r1`:** Etiquetado como `Solo Chat / Sin Tools` con `num_predict=3072` y `repeat_penalty=1.15` en Ollama.
+   - **Motor de Diagnóstico de Sesiones en Vivo (`scripts/supervisor/session_diagnostics.py` + `GET /api/supervisor/session-health`):** Detecta sesiones huérfanas (`idle_outcome IS NULL`), tormentas de compactación, amnesia post-compactación, fallos `edit_oldstring_mismatch`, `skill` vs `subagent`, `output-limit`, `reasoning_starvation_no_tools`, `silent_premature_stop` y colas zombi en `:11434`.
+   - **Reglas Operativas Estrictas:** Secuencialidad estricta de subagentes (`subagent: false` para no recursión), `READ-BEFORE-EDIT & EDICIÓN ATÓMICA`, `CONTINUIDAD TRAS HERRAMIENTAS`, `ollama run *: deny` y `sudo *: ask`.
 
 ---
 
@@ -33,8 +38,8 @@ cd opencode-saghet
 ```
 
 Comandos frecuentes:
-- `./install.sh --skip-models` — Re-aplica configuración, comandos, skills y servicio `systemd --user` de forma idempotente.
-- `./doctor.sh` — Diagnóstico integral de SO, GPU, Ollama, OpenCode, Gentle AI, VRAM alignment y seguridad P0.
+- `./install.sh --skip-models --restart-service` — Re-aplica configuración, `num_ctx 24576` en Ollama, comandos, skills y reinicia el servicio de fondo de OpenCode.
+- `./doctor.sh` — Diagnóstico integral de SO, GPU, Ollama (`num_ctx=24576`, `num_predict=3072`), OpenCode, Gentle AI, VRAM alignment y seguridad P0.
 - `opencode-saghet --dashboard` — Abre el **Saghet Matrix Control Center** (`http://127.0.0.1:4780`).
 - `opencode-saghet --desktop` — Inicia OpenCode Desktop con overlay visual Matrix Protocol.
 - `./update.sh` / `./restore.sh --list` — Actualización segura y restauración instantánea desde snapshots.
@@ -44,7 +49,7 @@ Comandos frecuentes:
 ## Suite de Aceptación y Laboratorio de Benchmarks Reales
 
 ```bash
-# 1. Suite de aceptación integral (Categorías A-N: instalación, agentes, seguridad P0, supervisor, memoria, harness, UI y docs)
+# 1. Suite de aceptación integral (15 pruebas A-O: instalación, agentes, seguridad P0, supervisor, diagnóstico en vivo, memoria, harness, UI y docs)
 python3 tests/run_acceptance.py
 
 # 2. Laboratorio de 10 benchmarks reproducibles de inteligencia real en proyectos Git aislados
@@ -69,4 +74,5 @@ python3 tests/benchmarks/run_intelligence_benchmarks.py
   - [ADR-004: Memoria Jerárquica de 4 Niveles y Protección DCP](docs/adr/ADR-004-hierarchical-memory-and-dcp.md)
   - [ADR-005: Blindaje de Seguridad P0 del Control Center](docs/adr/ADR-005-p0-platform-security-hardening.md)
 - [Matriz de Compatibilidad y Versiones Fijadas](compatibility.json)
+- [Historial de Cambios (CHANGELOG)](CHANGELOG.md)
 - [Atribuciones y Licencias](NOTICE.md)
