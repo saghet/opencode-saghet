@@ -169,6 +169,10 @@ if [ "$DRY_RUN" -eq 0 ] && [ "$SKIP_MODELS" -eq 0 ] && command -v ollama >/dev/n
   fi
 fi
 
+if [ "$DRY_RUN" -eq 0 ] && [ -f "${REPO_DIR}/scripts/configure-ollama-ctx.sh" ]; then
+  bash "${REPO_DIR}/scripts/configure-ollama-ctx.sh" 24576 || true
+fi
+
 log "7/8 Recargando OpenCode..."
 if [ "$DRY_RUN" -eq 0 ] && command -v opencode >/dev/null 2>&1; then
   if [ "$RESTART_SERVICE" -eq 1 ]; then

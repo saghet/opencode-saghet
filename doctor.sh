@@ -124,6 +124,12 @@ else
   warn "No se detectó /etc/systemd/system/ollama.service.d/override.conf con OLLAMA_MAX_LOADED_MODELS=1"
 fi
 
+if command -v ollama >/dev/null 2>&1 && ollama show qwen3.5:9b --modelfile 2>/dev/null | grep -q '^PARAMETER num_ctx 24576'; then
+  ok "Ollama Modelfile sincronizado a num_ctx=24576 (colchón físico anti-truncamiento)"
+else
+  warn "qwen3.5:9b en Ollama no reporta PARAMETER num_ctx 24576 (ejecuta scripts/configure-ollama-ctx.sh)"
+fi
+
 if [ -x "${HOME}/.cargo/bin/gentle-ai" ] || command -v gentle-ai >/dev/null 2>&1; then
   GENTLE_BIN="${HOME}/.cargo/bin/gentle-ai"
   command -v gentle-ai >/dev/null 2>&1 && GENTLE_BIN="$(command -v gentle-ai)"
