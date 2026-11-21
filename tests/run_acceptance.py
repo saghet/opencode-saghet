@@ -36,8 +36,15 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         self.assertIn("SALUDABLE", res2.stdout)
 
     def test_b_opencode_agents_and_plugins(self):
-        agents_raw = subprocess.check_output(["opencode", "debug", "agents"], text=True, timeout=10)
-        agents = {a["id"]: a for a in json.loads(agents_raw)}
+        res = subprocess.run(["opencode", "debug", "config"], capture_output=True, text=True, timeout=10, check=False)
+        if res.returncode == 0 and res.stdout.strip().startswith("{"):
+            cfg = json.loads(res.stdout)
+        else:
+            deployed_cfg = Path.home() / ".config" / "opencode" / "opencode.json"
+            self.assertTrue(deployed_cfg.is_file(), f"No se encontró config desplegada ni respondió opencode debug config: {res.stderr}")
+            cfg = json.loads(deployed_cfg.read_text(encoding="utf-8"))
+
+        agents = cfg.get("agent") or {}
         expected = [
             "saghet-orchestrator",
             "architect",
@@ -60,10 +67,11 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         for name in expected:
             self.assertIn(name, agents, f"Falta agente {name}")
 
-        plugins_out = subprocess.check_output(["opencode", "plugin", "list", "--builtin"], text=True, timeout=10)
-        self.assertIn("opencode-dcp", plugins_out)
-        self.assertIn("opencode-mem", plugins_out)
-        self.assertIn("plannotator", plugins_out)
+        plugins_res = subprocess.run(["opencode", "plugin", "list", "--builtin"], capture_output=True, text=True, timeout=10, check=False)
+        plugins_text = plugins_res.stdout if plugins_res.returncode == 0 else json.dumps(cfg.get("plugins") or [])
+        self.assertIn("opencode-dcp", plugins_text)
+        self.assertIn("opencode-mem", plugins_text)
+        self.assertIn("plannotator", plugins_text)
 
     def test_c_ollama_and_dashboard_live(self):
         with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=4) as r:

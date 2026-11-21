@@ -1,4 +1,4 @@
-# OpenCode-Saghet // MATRIX PROTOCOL (`v0.2.1-stability-hotfix`)
+# OpenCode-Saghet // MATRIX PROTOCOL (`v0.3.0-cognitive-v2`)
 
 Plataforma avanzada, local-first y autónoma de desarrollo con IA para **Garuda Linux y Arch Linux**, construida sobre **OpenCode v2.3.2**, **Gentle AI v4.5.0**, **Ollama 0.40.16**, **Saghet Matrix Control Center (10 módulos)** y **Adaptador Desacoplado DeepSeek Harness vía ACP**, optimizada para **NVIDIA GeForce RTX 4060 Laptop (8 GB VRAM)** y **32 GB RAM**.
 
@@ -54,6 +54,9 @@ python3 tests/run_acceptance.py
 
 # 2. Laboratorio de 10 benchmarks reproducibles de inteligencia real en proyectos Git aislados
 python3 tests/benchmarks/run_intelligence_benchmarks.py
+
+# 3. Suite de Benchmarks Cognitivos V2 (comprensión de usuario, memoria semántica, proyecto y eficiencia)
+python3 tests/benchmarks/run_cognitive_benchmarks.py
 ```
 
 ---
@@ -73,6 +76,7 @@ python3 tests/benchmarks/run_intelligence_benchmarks.py
   - [ADR-003: Adaptador Desacoplado DeepSeek Harness vía ACP](docs/adr/ADR-003-decoupled-deepseek-harness-acp.md)
   - [ADR-004: Memoria Jerárquica de 4 Niveles y Protección DCP](docs/adr/ADR-004-hierarchical-memory-and-dcp.md)
   - [ADR-005: Blindaje de Seguridad P0 del Control Center](docs/adr/ADR-005-p0-platform-security-hardening.md)
+  - [ADR-006: Saghet Cognitive Intelligence V2](docs/adr/ADR-006-cognitive-intelligence-v2.md)
 - [Matriz de Compatibilidad y Versiones Fijadas](compatibility.json)
 - [Historial de Cambios (CHANGELOG)](CHANGELOG.md)
 - [Atribuciones y Licencias](NOTICE.md)

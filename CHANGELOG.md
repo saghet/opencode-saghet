@@ -1,5 +1,15 @@
 # Changelog — OpenCode-Saghet
 
+## [v0.3.0-cognitive-v2] — 2026-11-21
+
+### Saghet Cognitive Intelligence V2
+- **User Intelligence Engine ([scripts/memory/user_intelligence.py](scripts/memory/user_intelligence.py)):** Modelo contextual del usuario con preferencias explícitas vs. inferidas, temporales vs. permanentes, resolución de conflictos (`explicit > inferred`, estado `superseded`), aprendizaje de correcciones multilingüe (ES/EN) y privacidad estricta (sin secretos ni preferencias sensibles sin autorización; inspección, corrección y borrado).
+- **Intent Understanding & Adaptive Reasoning ([scripts/supervisor/gentle_ai_bridge.py](scripts/supervisor/gentle_ai_bridge.py)):** Interpretación estructurada (`TypedIntent`), soporte ES/EN con abreviaturas/correferencias, refinamiento LLM opcional (`use_llm`), preguntas únicas de alto valor y planificación proporcional (`use_dag`, `token_budget`, `replan_after_failure`).
+- **Semantic Memory Engine ([scripts/memory/hierarchical_memory.py](scripts/memory/hierarchical_memory.py)):** Índice SQLite FTS5 (`memories_fts` BM25) + expansión semántica bilingüe + embeddings locales (`embedding_json`), decaimiento por recencia, relaciones tipadas (`link_memories`), `build_contextual_memory_pack()` y `consolidate_experiences()`.
+- **Project Intelligence & Continuity ([scripts/memory/project_intelligence.py](scripts/memory/project_intelligence.py)):** Indexación incremental en SQLite (AST Python, símbolos, imports, dependencias, pruebas y Git) con análisis de impacto y reconstrucción real de continuidad entre sesiones.
+- **Outcome Learning & Engineering Intelligence ([scripts/memory/outcome_learning.py](scripts/memory/outcome_learning.py), [scripts/supervisor/quality_supervisor.py](scripts/supervisor/quality_supervisor.py), [scripts/harness/acp_adapter.py](scripts/harness/acp_adapter.py)):** Registro en 4 dimensiones (técnica, funcional, satisfacción, eficiencia), evolución controlada de Skills con rollback, taxonomía de 10 clases de error, `Independent Review 2.0`, `execute_acp_stdio()` y guardia contra *prompt injection*.
+- **Puente Vivo, Router 2.0 y Benchmarks ([scripts/supervisor/cognitive_bridge.py](scripts/supervisor/cognitive_bridge.py), [scripts/eval/model_lab.py](scripts/eval/model_lab.py), [tests/benchmarks/run_cognitive_benchmarks.py](tests/benchmarks/run_cognitive_benchmarks.py)):** `/cognitive-context`, métricas no evaluadas marcadas como `unknown`, histéresis anti-swap VRAM (`<= 5.0` pts), suite cognitiva (`12/12`, `100.0 %`), aceptación en vivo (`15/15`) y benchmark real con `qwen3.5:9b` (`9/10`, `90.0 %`, `6758 MiB` VRAM).
+
 ## [v0.2.1-stability-hotfix] — 2026-11-21
 
 ### Estabilidad, Contexto `24k` y Diagnóstico en Vivo

@@ -1,10 +1,10 @@
 {
   "schema": "saghet.cognitive-benchmarks/v2",
-  "timestamp": "2026-11-21T23:19:19Z",
+  "timestamp": "2026-11-21T23:36:36Z",
   "total_scenarios": 12,
   "passed_scenarios": 12,
   "pass_rate_pct": 100.0,
-  "total_elapsed_ms": 142.41,
+  "total_elapsed_ms": 136.07,
   "controlled_comparison": {
     "baseline_v0_2_1": {
       "semantic_bilingual_retrieval": false,
@@ -27,55 +27,55 @@
       "id": "U01_ambiguous_coref",
       "category": "user_understanding",
       "passed": true,
-      "ms": 1.3
+      "ms": 1.03
     },
     {
       "id": "U02_grounded_coref",
       "category": "user_understanding",
       "passed": true,
-      "ms": 2.23
+      "ms": 2.38
     },
     {
       "id": "U03_explicit_over_inferred",
       "category": "user_understanding",
       "passed": true,
-      "ms": 1.8
+      "ms": 1.57
     },
     {
       "id": "U04_contradiction_supersede",
       "category": "user_understanding",
       "passed": true,
-      "ms": 2.26
+      "ms": 1.87
     },
     {
       "id": "U05_correction_learning",
       "category": "user_understanding",
       "passed": true,
-      "ms": 3.21
+      "ms": 2.8
     },
     {
       "id": "M01_bilingual_semantic_retrieval",
       "category": "memory",
       "passed": true,
-      "ms": 1.33
+      "ms": 1.27
     },
     {
       "id": "M02_project_isolation",
       "category": "memory",
       "passed": true,
-      "ms": 0.54
+      "ms": 0.49
     },
     {
       "id": "M03_fact_vs_hypothesis",
       "category": "memory",
       "passed": true,
-      "ms": 1.6
+      "ms": 1.35
     },
     {
       "id": "E01_repo_index_and_impact",
       "category": "engineering",
       "passed": true,
-      "ms": 117.79
+      "ms": 112.44
     },
     {
       "id": "E02_independent_review_2",
@@ -93,7 +93,7 @@
       "id": "E04_outcome_dimensions",
       "category": "engineering",
       "passed": true,
-      "ms": 1.45
+      "ms": 1.02
     }
   ]
 }

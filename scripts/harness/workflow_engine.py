@@ -454,6 +454,28 @@ class HarnessWorkflowEngine:
             },
         )
 
+        # Registrar resultado del workflow en OutcomeLearningEngine (sin bloquear en entornos RO)
+        try:
+            from scripts.memory.outcome_learning import OutcomeLearningEngine
+
+            specialists_used = sorted({d["specialist"] for d in delegations.values()})
+            models_used = sorted({r.get("model_used", "") for r in node_results.values() if r.get("model_used")})
+            total_attempts = sum(int(r.get("attempts", 1)) for r in node_results.values())
+            OutcomeLearningEngine().record_outcome(
+                objective=title,
+                strategy="harness_acp_dag" if harness_enabled else "native_opencode_fallback",
+                model=", ".join(models_used) or "ollama/qwen3.5:9b",
+                specialists=specialists_used,
+                tools_used=["acp", "dag"],
+                attempts=max(1, total_attempts // max(1, len(node_results))),
+                errors=[str(r.get("errors")) for r in node_results.values() if r.get("errors")],
+                technical_success=all_succeeded,
+                functional_success=all_succeeded,
+                project_path=directory,
+            )
+        except Exception:
+            pass
+
         return {
             "ok": all_succeeded,
             "workflow_id": workflow_id,

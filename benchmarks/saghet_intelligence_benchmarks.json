@@ -1,13 +1,13 @@
 {
   "schema": "saghet.intelligence-benchmarks/v1",
-  "timestamp": "2026-11-20T20:05:44Z",
+  "timestamp": "2026-11-21T23:34:05Z",
   "model_evaluated": "qwen3.5:9b",
   "total_benchmarks": 10,
-  "passed_benchmarks": 10,
-  "pass_rate_pct": 100.0,
-  "total_elapsed_s": 33.15,
-  "peak_vram_mib": 6568.0,
-  "peak_ram_mib": 9153.9,
+  "passed_benchmarks": 9,
+  "pass_rate_pct": 90.0,
+  "total_elapsed_s": 27.94,
+  "peak_vram_mib": 6758.0,
+  "peak_ram_mib": 10012.3,
   "artificial_test_mutations_allowed": false,
   "results": [
     {
@@ -15,12 +15,12 @@
       "category": "Desarrollo de una funcionalidad",
       "specialist": "senior-developer",
       "model": "qwen3.5:9b",
-      "passed": true,
-      "supervisor_verdict": "ACCEPT",
+      "passed": false,
+      "supervisor_verdict": "CORRECT",
       "code_quality": 100.0,
-      "tok_per_s": 39.71,
+      "tok_per_s": 40.3,
       "tokens": 274,
-      "elapsed_s": 4.67
+      "elapsed_s": 4.57
     },
     {
       "id": "02_bug_fixing",
@@ -30,9 +30,9 @@
       "pre_fix_failed": true,
       "passed": true,
       "supervisor_verdict": "ACCEPT",
-      "tok_per_s": 40.29,
-      "tokens": 380,
-      "elapsed_s": 1.75
+      "tok_per_s": 40.74,
+      "tokens": 379,
+      "elapsed_s": 1.73
     },
     {
       "id": "03_refactoring",
@@ -43,9 +43,9 @@
       "quality_after": 100.0,
       "passed": true,
       "supervisor_verdict": "ACCEPT",
-      "tok_per_s": 31.87,
-      "tokens": 314,
-      "elapsed_s": 4.6
+      "tok_per_s": 40.42,
+      "tokens": 309,
+      "elapsed_s": 3.54
     },
     {
       "id": "04_debugging",
@@ -54,9 +54,9 @@
       "model": "qwen3.5:9b",
       "passed": true,
       "supervisor_verdict": "ACCEPT",
-      "tok_per_s": 32.74,
-      "tokens": 352,
-      "elapsed_s": 1.6
+      "tok_per_s": 40.87,
+      "tokens": 350,
+      "elapsed_s": 1.31
     },
     {
       "id": "05_test_creation",
@@ -66,9 +66,9 @@
       "kills_mutant": true,
       "passed": true,
       "supervisor_verdict": "ACCEPT",
-      "tok_per_s": 31.61,
+      "tok_per_s": 40.48,
       "tokens": 229,
-      "elapsed_s": 3.99
+      "elapsed_s": 3.13
     },
     {
       "id": "06_technical_research",
@@ -78,9 +78,9 @@
       "facts_verified": true,
       "passed": true,
       "supervisor_verdict": "ACCEPT",
-      "tok_per_s": 31.29,
+      "tok_per_s": 40.25,
       "tokens": 354,
-      "elapsed_s": 5.93
+      "elapsed_s": 4.63
     },
     {
       "id": "07_build_error_resolution",
@@ -89,9 +89,9 @@
       "model": "qwen3.5:9b",
       "passed": true,
       "supervisor_verdict": "ACCEPT",
-      "tok_per_s": 32.07,
-      "tokens": 222,
-      "elapsed_s": 2.01
+      "tok_per_s": 40.79,
+      "tokens": 223,
+      "elapsed_s": 1.58
     },
     {
       "id": "08_multi_file_work",
@@ -100,9 +100,9 @@
       "model": "qwen3.5:9b",
       "passed": true,
       "supervisor_verdict": "ACCEPT",
-      "tok_per_s": 29.0,
+      "tok_per_s": 40.75,
       "tokens": 204,
-      "elapsed_s": 2.36
+      "elapsed_s": 1.71
     },
     {
       "id": "09_multi_agent_execution",
@@ -110,10 +110,10 @@
       "specialist": "saghet-orchestrator (4-agent DAG)",
       "model": "qwen3.5:9b",
       "passed": true,
-      "workflow_id": "wf_d66d72b263",
+      "workflow_id": "wf_638d93875a",
       "traces_count": 10,
       "tokens": 128,
-      "elapsed_s": 1.82
+      "elapsed_s": 1.46
     },
     {
       "id": "10_fault_recovery",
@@ -123,9 +123,9 @@
       "attempt1_verdict": "CORRECT",
       "attempt2_verdict": "ACCEPT",
       "passed": true,
-      "tok_per_s": 31.28,
-      "tokens": 475,
-      "elapsed_s": 3.32
+      "tok_per_s": 39.94,
+      "tokens": 505,
+      "elapsed_s": 2.92
     }
   ]
 }

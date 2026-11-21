@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import urllib.request
 from pathlib import Path
 
 from scripts.eval.model_lab import SmartModelRouter
@@ -150,11 +151,56 @@ class IntentUnderstandingEngine:
         except Exception:
             return None
 
+    @staticmethod
+    def _refine_with_llm(raw_text: str, contextual_constraints: list[str]) -> dict | None:
+        """
+        Refinamiento semántico opcional vía Ollama (respetando VRAM/avoid_vram_swap=True).
+        Solo se invoca cuando `use_llm=True` y la confianza determinista es limítrofe.
+        """
+        try:
+            router = SmartModelRouter()
+            model_id = router.route("classification", avoid_vram_swap=True)["selected_model"]
+            clean_model = model_id[len("ollama/") :] if model_id.startswith("ollama/") else model_id
+            ctx_hint = "; ".join(contextual_constraints[:3])
+            prompt = (
+                "Analiza la intención del usuario y responde ÚNICAMENTE un JSON válido con las claves: "
+                '{"task_type": "research|coding|debugging|architecture|other", '
+                '"desired_outcome": "...", "requires_clarification": false, "clarification_question": null}.\n'
+                f"Contexto: {ctx_hint}\nInstrucción: {raw_text[:400]}"
+            )
+            payload = json.dumps(
+                {
+                    "model": clean_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "think": False,
+                    "options": {"num_predict": 120, "temperature": 0.0},
+                }
+            ).encode("utf-8")
+            req = urllib.request.Request(
+                "http://127.0.0.1:11434/api/generate",
+                data=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            raw_resp = (data.get("response") or "").strip()
+            m = re.search(r"\{.*\}", raw_resp, re.DOTALL)
+            if not m:
+                return None
+            parsed = json.loads(m.group(0))
+            if parsed.get("task_type") not in {"research", "coding", "debugging", "architecture", "other"}:
+                return None
+            return parsed
+        except Exception:
+            return None
+
     def interpret(
         self,
         objective: str,
         context_files: list[str] | None = None,
         project_path: str = "*",
+        use_llm: bool = False,
     ) -> dict:
         raw_text = (objective or "").strip()
         norm_text = _normalize_multilingual_text(raw_text)
@@ -277,6 +323,20 @@ class IntentUnderstandingEngine:
             else ("Cambio verificado con pruebas y sin regresiones" if task_type in {"coding", "debugging", "architecture"} else "Respuesta clara acorde al contexto")
         )
 
+        llm_refined = False
+        if use_llm and 0.35 <= confidence < 0.78 and norm_text:
+            refined = self._refine_with_llm(raw_text, contextual_constraints)
+            if refined:
+                llm_refined = True
+                task_type = refined["task_type"]
+                if isinstance(refined.get("desired_outcome"), str) and refined["desired_outcome"].strip():
+                    desired_outcome = refined["desired_outcome"].strip()[:200]
+                if isinstance(refined.get("requires_clarification"), bool):
+                    requires_clarification = refined["requires_clarification"]
+                    if requires_clarification and isinstance(refined.get("clarification_question"), str):
+                        clarification_question = refined["clarification_question"].strip()[:220]
+                confidence = min(0.92, round(confidence + 0.15, 2))
+
         return {
             "user_intent": raw_text[:240],
             "normalized_intent": norm_text[:240],
@@ -293,6 +353,7 @@ class IntentUnderstandingEngine:
             "clarification_question": clarification_question,
             "detected_language": lang,
             "has_coreference": has_coref,
+            "llm_refined": llm_refined,
         }
 
 
@@ -386,13 +447,19 @@ def classify_and_route(
     project_path: str = "*",
     memory_store: HierarchicalMemoryStore | None = None,
     user_engine: UserIntelligenceEngine | None = None,
+    use_llm: bool = False,
 ) -> dict:
     """
     Capa Gentle AI de clasificación de complejidad, riesgo y enrutamiento de modelos/especialistas.
     Integra `IntentUnderstandingEngine` y respeta la restricción de 8 GB VRAM (OLLAMA_MAX_LOADED_MODELS=1).
     """
     intent_engine = IntentUnderstandingEngine(memory_store=memory_store, user_engine=user_engine)
-    intent_analysis = intent_engine.interpret(objective, context_files=context_files, project_path=project_path)
+    intent_analysis = intent_engine.interpret(
+        objective,
+        context_files=context_files,
+        project_path=project_path,
+        use_llm=use_llm,
+    )
 
     text = (intent_analysis.get("normalized_intent") or objective or "").strip()
     files = context_files or []
