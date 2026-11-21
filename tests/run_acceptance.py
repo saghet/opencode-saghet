@@ -171,6 +171,7 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             )
 
         self.assertEqual(cfg["permission"]["bash"].get("ollama run *"), "deny")
+        self.assertEqual(cfg["permission"]["bash"].get("sudo *"), "ask")
 
         self.assertEqual(cfg["permission"]["read"].get("**/.env"), "deny")
         self.assertEqual(cfg["permission"]["read"].get("service.json"), "deny")
