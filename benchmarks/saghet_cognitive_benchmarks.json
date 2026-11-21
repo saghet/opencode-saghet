@@ -1,10 +1,10 @@
 {
   "schema": "saghet.cognitive-benchmarks/v2",
-  "timestamp": "2026-11-21T23:36:36Z",
-  "total_scenarios": 12,
-  "passed_scenarios": 12,
+  "timestamp": "2026-11-21T23:52:07Z",
+  "total_scenarios": 20,
+  "passed_scenarios": 20,
   "pass_rate_pct": 100.0,
-  "total_elapsed_ms": 136.07,
+  "total_elapsed_ms": 245.37,
   "controlled_comparison": {
     "baseline_v0_2_1": {
       "semantic_bilingual_retrieval": false,
@@ -33,49 +33,49 @@
       "id": "U02_grounded_coref",
       "category": "user_understanding",
       "passed": true,
-      "ms": 2.38
+      "ms": 1.92
     },
     {
       "id": "U03_explicit_over_inferred",
       "category": "user_understanding",
       "passed": true,
-      "ms": 1.57
+      "ms": 1.71
     },
     {
       "id": "U04_contradiction_supersede",
       "category": "user_understanding",
       "passed": true,
-      "ms": 1.87
+      "ms": 1.95
     },
     {
       "id": "U05_correction_learning",
       "category": "user_understanding",
       "passed": true,
-      "ms": 2.8
+      "ms": 3.28
     },
     {
       "id": "M01_bilingual_semantic_retrieval",
       "category": "memory",
       "passed": true,
-      "ms": 1.27
+      "ms": 1.24
     },
     {
       "id": "M02_project_isolation",
       "category": "memory",
       "passed": true,
-      "ms": 0.49
+      "ms": 0.51
     },
     {
       "id": "M03_fact_vs_hypothesis",
       "category": "memory",
       "passed": true,
-      "ms": 1.35
+      "ms": 1.45
     },
     {
       "id": "E01_repo_index_and_impact",
       "category": "engineering",
       "passed": true,
-      "ms": 112.44
+      "ms": 176.53
     },
     {
       "id": "E02_independent_review_2",
@@ -93,7 +93,55 @@
       "id": "E04_outcome_dimensions",
       "category": "engineering",
       "passed": true,
-      "ms": 1.02
+      "ms": 0.98
+    },
+    {
+      "id": "R01_repo_map_cycles_and_gitignore",
+      "category": "repo_intelligence",
+      "passed": true,
+      "ms": 5.47
+    },
+    {
+      "id": "R02_sha256_incremental_cache",
+      "category": "repo_intelligence",
+      "passed": true,
+      "ms": 0.5
+    },
+    {
+      "id": "M04_memory_contradiction_resolution",
+      "category": "memory",
+      "passed": true,
+      "ms": 2.44
+    },
+    {
+      "id": "M05_memory_prompt_injection_shield",
+      "category": "security",
+      "passed": true,
+      "ms": 0.03
+    },
+    {
+      "id": "E05_edit_and_git_conflict_recovery",
+      "category": "engineering",
+      "passed": true,
+      "ms": 0.03
+    },
+    {
+      "id": "E06_smart_router_historical_outcomes",
+      "category": "routing",
+      "passed": true,
+      "ms": 3.33
+    },
+    {
+      "id": "C01_continuous_improvement_experiment_gate",
+      "category": "continuous_improvement",
+      "passed": true,
+      "ms": 0.68
+    },
+    {
+      "id": "E07_cognitive_bridge_e2e_turn",
+      "category": "engineering",
+      "passed": true,
+      "ms": 33.8
     }
   ]
 }

@@ -200,6 +200,7 @@ class HarnessWorkflowEngine:
         directory: str,
         persistent_session_id: str | None = None,
         node_executor: Callable[[dict, dict, int], dict] | None = None,
+        max_workflow_seconds: float = 600.0,
     ) -> dict:
         """
         Ejecuta un workflow DAG completo con recuperación de fallos, Task Board y Execution Traces.
@@ -226,17 +227,43 @@ class HarnessWorkflowEngine:
 
         spec_map = {str(s["id"]): dict(s) for s in nodes_spec}
         delegations: dict[str, dict] = {}
+        seen_signatures: dict[tuple[str, str], str] = {}
+        redundant_nodes: list[str] = []
+
+        # Preparar contexto cognitivo pre-workflow (sin bloquear si el entorno es read-only)
+        cognitive_ctx_prompt = ""
+        cognitive_bridge = None
+        try:
+            from scripts.supervisor.cognitive_bridge import CognitiveBridge
+            cognitive_bridge = CognitiveBridge()
+            prep = cognitive_bridge.prepare_turn_context(
+                objective=title,
+                project_path=directory,
+                session_id=session_id,
+                max_chars=1800,
+            )
+            cognitive_ctx_prompt = prep.get("compact_context_prompt", "")
+        except Exception:
+            cognitive_bridge = None
 
         # Registrar todos los nodos inicialmente en el Task Board
         for nid in topo_order:
             nspec = spec_map[nid]
+            obj_text = str(nspec.get("prompt") or nspec.get("title") or nid)
             del_info = self.adapter.prepare_subagent_delegation(
                 task_id=nid,
-                objective=str(nspec.get("prompt") or nspec.get("title") or nid),
+                objective=obj_text,
                 directory=directory,
                 persistent_session_id=session_id,
                 preferred_specialist=nspec.get("specialist"),
             )
+            sig = (del_info["specialist"], " ".join(obj_text.lower().split())[:160])
+            if sig in seen_signatures:
+                del_info["redundant_of"] = seen_signatures[sig]
+                redundant_nodes.append(nid)
+            else:
+                seen_signatures[sig] = nid
+            del_info["cognitive_context"] = cognitive_ctx_prompt
             delegations[nid] = del_info
             self.board.upsert_task(
                 task_id=nid,
@@ -454,25 +481,40 @@ class HarnessWorkflowEngine:
             },
         )
 
-        # Registrar resultado del workflow en OutcomeLearningEngine (sin bloquear en entornos RO)
+        # Registrar resultado del workflow vía CognitiveBridge / OutcomeLearningEngine (sin bloquear en entornos RO)
         try:
-            from scripts.memory.outcome_learning import OutcomeLearningEngine
-
             specialists_used = sorted({d["specialist"] for d in delegations.values()})
             models_used = sorted({r.get("model_used", "") for r in node_results.values() if r.get("model_used")})
             total_attempts = sum(int(r.get("attempts", 1)) for r in node_results.values())
-            OutcomeLearningEngine().record_outcome(
-                objective=title,
-                strategy="harness_acp_dag" if harness_enabled else "native_opencode_fallback",
-                model=", ".join(models_used) or "ollama/qwen3.5:9b",
-                specialists=specialists_used,
-                tools_used=["acp", "dag"],
-                attempts=max(1, total_attempts // max(1, len(node_results))),
-                errors=[str(r.get("errors")) for r in node_results.values() if r.get("errors")],
-                technical_success=all_succeeded,
-                functional_success=all_succeeded,
-                project_path=directory,
-            )
+            errs = [str(r.get("errors")) for r in node_results.values() if r.get("errors")]
+            strat = "harness_acp_dag" if harness_enabled else "native_opencode_fallback"
+            if cognitive_bridge is not None:
+                cognitive_bridge.finalize_turn_outcome(
+                    objective=title,
+                    strategy=strat,
+                    model=", ".join(models_used) or "ollama/qwen3.5:9b",
+                    specialists=specialists_used,
+                    tools_used=["acp", "dag"],
+                    attempts=max(1, total_attempts // max(1, len(node_results))),
+                    errors=errs,
+                    technical_success=all_succeeded,
+                    functional_success=all_succeeded,
+                    project_path=directory,
+                )
+            else:
+                from scripts.memory.outcome_learning import OutcomeLearningEngine
+                OutcomeLearningEngine().record_outcome(
+                    objective=title,
+                    strategy=strat,
+                    model=", ".join(models_used) or "ollama/qwen3.5:9b",
+                    specialists=specialists_used,
+                    tools_used=["acp", "dag"],
+                    attempts=max(1, total_attempts // max(1, len(node_results))),
+                    errors=errs,
+                    technical_success=all_succeeded,
+                    functional_success=all_succeeded,
+                    project_path=directory,
+                )
         except Exception:
             pass
 
@@ -483,6 +525,7 @@ class HarnessWorkflowEngine:
             "harness_enabled": harness_enabled,
             "mode": "harness_acp_dag" if harness_enabled else "native_opencode_fallback",
             "topological_order": topo_order,
+            "redundant_nodes_detected": redundant_nodes,
             "recovered_nodes": recovered_count,
             "blocked_nodes": blocked_count,
             "nodes": node_results,

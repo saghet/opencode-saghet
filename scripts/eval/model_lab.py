@@ -94,12 +94,34 @@ SPECIALTY_WEIGHTS: dict[str, dict[str, float]] = {
         "tool_calling_reliability_pct": 0.20,
         "code_quality_score": 0.20,
     },
+    "research": {
+        "reasoning_planning_score": 0.35,
+        "tool_calling_reliability_pct": 0.25,
+        "task_completion_pct": 0.25,
+        "speed_score": 0.15,
+    },
+    "debugging": {
+        "error_recovery_rate_pct": 0.30,
+        "test_pass_rate_pct": 0.25,
+        "code_quality_score": 0.20,
+        "tool_calling_reliability_pct": 0.15,
+        "reasoning_planning_score": 0.10,
+    },
+    "memory": {
+        "speed_score": 0.35,
+        "vram_efficiency_score": 0.30,
+        "task_completion_pct": 0.20,
+        "reasoning_planning_score": 0.15,
+    },
 }
 
 INCUMBENT_ROUTING_DEFAULTS = {
     "classification": "ollama/qwen3.5:4b",
     "coding": "ollama/qwen3.5:9b",
     "architecture": "ollama/qwen3.5:9b",
+    "research": "ollama/qwen3.5:9b",
+    "debugging": "ollama/qwen3.5:9b",
+    "memory": "ollama/qwen3.5:4b",
     "independent_review": "ollama/abliterant/qwen3.5-rana:9b",
     "security_audit": "ollama/abliterant/qwen3.5-rana:9b",
 }
@@ -448,8 +470,45 @@ class SmartModelRouter:
     - No reemplaza modelos actuales sin que exista un benchmark comparativo verificado que supere al titular.
     """
 
-    def __init__(self, matrix_data: dict | None = None) -> None:
+    def __init__(self, matrix_data: dict | None = None, outcome_engine=None) -> None:
         self.matrix = matrix_data or load_evaluation_matrix()
+        self.outcome_engine = outcome_engine
+
+    def get_historical_model_bonus(self, model_id: str, specialty: str) -> dict:
+        """
+        Calcula un ajuste empírico acotado [-5.0, +5.0] a partir de resultados reales en outcome_records
+        cuando existen >= 3 ejecuciones verificadas para el modelo.
+        """
+        if self.outcome_engine is None:
+            try:
+                from scripts.memory.outcome_learning import OutcomeLearningEngine
+                self.outcome_engine = OutcomeLearningEngine()
+            except Exception:
+                return {"samples": 0, "bonus": 0.0, "success_rate": None}
+
+        clean = model_id[len("ollama/") :] if model_id.startswith("ollama/") else model_id
+        try:
+            with self.outcome_engine._connect() as conn:
+                rows = conn.execute(
+                    """
+                    SELECT technical_success, functional_success, efficiency_score
+                    FROM outcome_records
+                    WHERE model IN (?, ?)
+                    ORDER BY created_at DESC LIMIT 30
+                    """,
+                    (model_id, clean),
+                ).fetchall()
+        except Exception:
+            return {"samples": 0, "bonus": 0.0, "success_rate": None}
+
+        if len(rows) < 3:
+            return {"samples": len(rows), "bonus": 0.0, "success_rate": None}
+
+        succ = sum(1 for r in rows if r["technical_success"] and r["functional_success"]) / len(rows)
+        avg_eff = sum(float(r["efficiency_score"] or 0.0) for r in rows) / len(rows)
+        # Centro en 0.70 de éxito: >0.70 bonifica hasta +5, <0.70 penaliza hasta -5
+        bonus = max(-5.0, min(5.0, round((succ - 0.70) * 12.0 + (avg_eff - 0.5) * 3.0, 2)))
+        return {"samples": len(rows), "bonus": bonus, "success_rate": round(succ, 3)}
 
     def get_model_entry(self, model_id: str) -> dict | None:
         clean = model_id[len("ollama/") :] if model_id.startswith("ollama/") else model_id
@@ -559,11 +618,16 @@ class SmartModelRouter:
 
         entry = self.get_model_entry(primary)
         score_info = compute_verifiable_score(entry.get("metrics") or {}, spec) if entry else {"verifiable_score": None}
+        hist_info = self.get_historical_model_bonus(primary, spec)
+        base_score = score_info.get("verifiable_score")
+        adjusted_score = round(base_score + hist_info["bonus"], 2) if base_score is not None else None
 
         return {
             "specialty": spec,
             "selected_model": primary,
-            "verifiable_score": score_info.get("verifiable_score"),
+            "verifiable_score": adjusted_score,
+            "base_verifiable_score": base_score,
+            "historical_outcome": hist_info,
             "vram_swap_avoided": vram_swap_avoided,
             "vram_currently_loaded": vram_loaded,
             "fallback_chain": [f for f in fallbacks if f != primary],

@@ -62,6 +62,10 @@ _ERROR_TAXONOMY: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("reasoning_error", re.compile(r"\b(reasoning_contradiction|reasoning_loop|unverified_assumption|incomplete_implementation)\b", re.IGNORECASE)),
     ("architecture_error", re.compile(r"\b(circular\s+import|ciclo\s+detectado|contract\s+mismatch|schema\s+mismatch|architectur)\b", re.IGNORECASE)),
     ("model_error", re.compile(r"\b(empty_or_trivial_response|reasoning_starvation|silent_premature_stop|ollama.*error)\b", re.IGNORECASE)),
+    ("git_conflict", re.compile(r"\b(CONFLICT\s*\(|merge conflict|unmerged paths|<<<<<<)\b", re.IGNORECASE)),
+    ("edit_mismatch", re.compile(r"\b(oldString not found|edit_oldstring_mismatch|patch does not apply|hunk failed)\b", re.IGNORECASE)),
+    ("tool_timeout", re.compile(r"\b(timed out|TimeoutExpired|deadline exceeded|tool_timeout)\b", re.IGNORECASE)),
+    ("premature_stop", re.compile(r"\b(silent_premature_stop|empty response|stopped prematurely)\b", re.IGNORECASE)),
     ("functional_error", re.compile(r"\b(AssertionError|FAILED|test_execution_failed|mismatch|expected\s+.*\s+got)\b", re.IGNORECASE)),
 )
 
@@ -110,6 +114,10 @@ def recommend_recovery_strategy(
         "reasoning_error": "enforce_evidence_and_stepwise_verification",
         "architecture_error": "review_contracts_with_architect",
         "model_error": "retry_with_structured_prompt_or_fallback_model",
+        "git_conflict": "abort_or_rebase_clean_worktree",
+        "edit_mismatch": "read_target_file_and_apply_atomic_edit",
+        "tool_timeout": "split_command_and_increase_timeout_or_abort",
+        "premature_stop": "enforce_tool_continuation_and_explicit_verify",
         "functional_error": "debug_failing_assertion_and_patch",
     }
     return strategy_by_class.get(error_class, "debug_failing_assertion_and_patch")
@@ -370,6 +378,15 @@ class QualitySupervisor:
             project_path=str(directory) if directory else "*",
         )
         gentle_status = get_gentle_ai_status(directory)
+        repo_context = None
+        if directory and Path(directory).is_dir():
+            try:
+                from scripts.memory.project_intelligence import ProjectIntelligenceEngine
+                pi = ProjectIntelligenceEngine()
+                pi.index_project(directory)
+                repo_context = pi.select_relevant_context(objective, directory, max_chars=1600)
+            except Exception:
+                repo_context = None
         dag = TaskDependencyDAG()
         reasoning_plan = routing.get("reasoning_plan") or {}
 
@@ -403,6 +420,7 @@ class QualitySupervisor:
             "gentle_ai": gentle_status,
             "routing": routing,
             "reasoning_plan": reasoning_plan,
+            "repo_context": repo_context,
             "dag": dag.to_dict(),
         }
         record_decision(
@@ -559,6 +577,7 @@ class QualitySupervisor:
         test_returncode: int | None = None,
         affected_dependencies: list[str] | None = None,
         reviewer_claim: str = "",
+        task_type: str = "general",
     ) -> dict:
         """
         Independent Review 2.0 (Fase 6):
@@ -576,10 +595,15 @@ class QualitySupervisor:
             findings.append("incomplete_solution: El diff contiene placeholders o código truncado (TODO/NotImplementedError).")
         if _SECURITY_DIFF_RE.search(diff_text):
             findings.append("security_risk: El diff introduce patrones peligrosos (eval/exec/shell=True/os.system/secretos).")
-        if test_returncode is None:
+        if test_returncode is None and task_type != "docs":
             findings.append("insufficient_tests: No existe evidencia ejecutable de pruebas (test_returncode ausente).")
-        elif test_returncode != 0 or _TEST_FAILURE_RE.search(test_output):
+        elif test_returncode is not None and (test_returncode != 0 or _TEST_FAILURE_RE.search(test_output)):
             findings.append(f"regression_or_test_failure: Las pruebas fallaron (returncode={test_returncode}).")
+
+        if task_type == "bugfix" and test_returncode != 0:
+            findings.append("bugfix_unverified: Un bugfix requiere pruebas ejecutadas con éxito (returncode=0).")
+        if task_type == "security" and not any(k in (test_output or "").lower() for k in ("security", "auth", "token", "secret", "ran ", "passed")):
+            findings.append("security_unverified: Cambio de seguridad requiere evidencia de pruebas de seguridad o regresión.")
 
         code_changed = [f for f in changed if f.endswith((".py", ".js", ".ts", ".sh"))]
         if code_changed and not any("test" in f.lower() for f in changed) and "Ran " not in test_output and "PASSED" not in test_output.upper():

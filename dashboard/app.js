@@ -1168,6 +1168,62 @@ document.getElementById("submit-add-project-btn")?.addEventListener("click", asy
   }
 });
 
+async function loadCognitiveRepoMap() {
+  const box = document.getElementById("cognitive-repomap-box");
+  if (!box) return;
+  const activeProj = document.getElementById("select-project")?.value || "";
+  box.innerHTML = `<div class="empty-state">Indexando proyecto y calculando PageRank...</div>`;
+  try {
+    const q = activeProj ? `?dir=${encodeURIComponent(activeProj)}` : "";
+    const res = await fetch(`/api/cognitive/repo-map${q}`);
+    const data = await res.json();
+    if (!data.ok) {
+      box.innerHTML = `<div class="empty-state">Error: ${esc(data.error || "No disponible")}</div>`;
+      return;
+    }
+    const rm = data.repo_map || {};
+    const crit = (rm.critical_modules || []).slice(0, 6).map(
+      (m) => `<div class="list-row"><code>${esc(m.rel_path)}</code><span class="tag tag-ok">PR ${m.pagerank} · in=${m.in_degree}</span></div>`
+    ).join("");
+    const cycles = (rm.circular_dependencies || []).length;
+    box.innerHTML = `
+      <div class="list-row"><span>Archivos indexados: <strong>${rm.total_files ?? 0}</strong> · Entradas: <strong>${(rm.entry_points || []).length}</strong></span><span class="tag ${cycles ? "tag-warn" : "tag-ok"}">Ciclos: ${cycles} · Dups: ${rm.duplicate_blocks_count ?? 0}</span></div>
+      ${crit || `<div class="empty-state">Sin módulos críticos detectados.</div>`}
+    `;
+  } catch (err) {
+    box.innerHTML = `<div class="empty-state">Error: ${esc(err.message)}</div>`;
+  }
+}
+
+async function loadCognitiveExperiments() {
+  const box = document.getElementById("cognitive-exp-box");
+  if (!box) return;
+  try {
+    const [expRes, stRes] = await Promise.all([fetch("/api/cognitive/experiments"), fetch("/api/cognitive/status")]);
+    const expData = await expRes.json();
+    const stData = await stRes.json();
+    const exps = expData.experiments || [];
+    const opps = expData.opportunities || [];
+    const stats = stData.strategy_stats || {};
+    const rows = [
+      `<div class="list-row"><span>Outcomes registrados: <strong>${stats.total_outcomes ?? 0}</strong> · Oportunidades: <strong>${opps.length}</strong></span><span class="tag tag-ok">Experimentos: ${exps.length}</span></div>`,
+      ...exps.slice(0, 5).map(
+        (e) => `<div class="list-row"><span><strong>${esc(e.target_component)}</strong>: ${esc((e.problem_detected || "").slice(0, 70))}</span><span class="tag ${e.decision === "ACCEPTED" ? "tag-ok" : ""}">${esc(e.decision)}</span></div>`
+      ),
+      ...opps.slice(0, 3).map(
+        (o) => `<div class="list-row"><span>Oportunidad (${esc(o.target_component)}): ${esc((o.problem_detected || "").slice(0, 75))}</span><span class="tag tag-warn">PROPUESTA</span></div>`
+      ),
+    ];
+    box.innerHTML = rows.join("");
+  } catch (err) {
+    box.innerHTML = `<div class="empty-state">Error: ${esc(err.message)}</div>`;
+  }
+}
+
+document.getElementById("cognitive-repomap-btn")?.addEventListener("click", loadCognitiveRepoMap);
+document.getElementById("cognitive-exp-btn")?.addEventListener("click", loadCognitiveExperiments);
+loadCognitiveExperiments();
+
 document.getElementById("refresh-btn").addEventListener("click", loadTelemetry);
 loadTelemetry();
 setInterval(loadTelemetry, 8000);

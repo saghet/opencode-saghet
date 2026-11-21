@@ -951,7 +951,7 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     "matrix": router.matrix,
                     "active_routes": {
                         spec: router.route(spec, avoid_vram_swap=False)
-                        for spec in ("classification", "coding", "architecture", "independent_review", "security_audit")
+                        for spec in ("classification", "research", "coding", "debugging", "architecture", "independent_review", "security_audit", "memory")
                     },
                 },
             )
@@ -960,6 +960,59 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
         if parsed.path == "/api/memory/status":
             store = HierarchicalMemoryStore()
             self._send_json(200, {"ok": True, **store.get_summary()})
+            return
+
+        if parsed.path == "/api/cognitive/status":
+            try:
+                from scripts.memory.outcome_learning import OutcomeLearningEngine
+                from scripts.memory.user_intelligence import UserIntelligenceEngine
+                store = HierarchicalMemoryStore()
+                user_eng = UserIntelligenceEngine(memory_store=store)
+                out_eng = OutcomeLearningEngine(memory_store=store, user_engine=user_eng)
+                self._send_json(
+                    200,
+                    {
+                        "ok": True,
+                        "memory_summary": store.get_summary(),
+                        "user_profile": user_eng.get_user_profile(),
+                        "strategy_stats": out_eng.get_strategy_stats(),
+                    },
+                )
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        if parsed.path == "/api/cognitive/repo-map":
+            try:
+                from scripts.memory.project_intelligence import ProjectIntelligenceEngine
+                qs = urllib.parse.parse_qs(parsed.query)
+                req_dir = (qs.get("dir") or [str(REPO_DIR)])[0].strip() or str(REPO_DIR)
+                ok_dir, target_path, err = validate_project_directory(req_dir, create_if_missing=False)
+                if not ok_dir or target_path is None:
+                    self._send_json(400, {"ok": False, "error": err})
+                    return
+                pi = ProjectIntelligenceEngine()
+                idx = pi.index_project(target_path)
+                rm = pi.build_repo_map(target_path, max_files=20, max_chars=3000)
+                self._send_json(200, {"ok": True, "index": idx, "repo_map": rm})
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
+        if parsed.path == "/api/cognitive/experiments":
+            try:
+                from scripts.memory.experiment_registry import ExperimentRegistry
+                reg = ExperimentRegistry()
+                self._send_json(
+                    200,
+                    {
+                        "ok": True,
+                        "experiments": reg.list_experiments(limit=30),
+                        "opportunities": reg.analyze_improvement_opportunities(),
+                    },
+                )
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "error": str(exc)})
             return
 
         if parsed.path == "/api/harness/status":

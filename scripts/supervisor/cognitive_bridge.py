@@ -69,8 +69,14 @@ class CognitiveBridge:
 
         index_stats = None
         continuity = None
+        project_context = None
         if resolved_proj != "*" and Path(resolved_proj).is_dir():
             index_stats = self.project_engine.index_project(resolved_proj)
+            project_context = self.project_engine.select_relevant_context(
+                objective=objective,
+                project_path=resolved_proj,
+                max_chars=max(600, max_chars // 2),
+            )
             if _CONTINUITY_TRIGGER_RE.search(objective or ""):
                 continuity = self.project_engine.reconstruct_continuity_context(resolved_proj)
 
@@ -102,6 +108,8 @@ class CognitiveBridge:
             sections.append("[EXPLICIT_CONSTRAINTS] " + "; ".join(intent_info["explicit_constraints"]))
         if memory_pack.get("context_text"):
             sections.append("[MEMORY_CONTEXT]\n" + memory_pack["context_text"])
+        if project_context and project_context.get("context_text"):
+            sections.append("[PROJECT_INTELLIGENCE]\n" + project_context["context_text"])
         if continuity and continuity.get("has_saved_state"):
             sections.append(
                 "[PROJECT_CONTINUITY] "
@@ -117,6 +125,7 @@ class CognitiveBridge:
             "project_path": resolved_proj,
             "captured_user_signals": capture_res,
             "index_stats": index_stats,
+            "project_context": project_context,
             "continuity": continuity,
             "routing": routing,
             "memory_pack": memory_pack,

@@ -69,6 +69,30 @@ def contains_sensitive_secret(text: str) -> bool:
     """Detecta credenciales, tokens o secretos para evitar almacenarlos en memoria."""
     return bool(_SENSITIVE_SECRET_RE.search(text or ""))
 
+
+_PROMPT_INJECTION_RE = re.compile(
+    r"(?i)("
+    r"ignore\s+(?:all\s+)?previous\s+instructions|"
+    r"override\s+(?:system\s+prompt|security|safety)|"
+    r"disregard\s+(?:all\s+)?rules|"
+    r"<\s*/?\s*system\s*>|"
+    r"exfiltrate\s+(?:secrets|env|keys|tokens)|"
+    r"rm\s+-rf\s+/"
+    r")"
+)
+_NEGATION_RE = re.compile(r"\b(no|not|never|nunca|jam[aá]s|avoid|evitar|prohibido|disable|deprecated|reemplazar)\b", re.IGNORECASE)
+
+
+def contains_prompt_injection(text: str) -> bool:
+    """Detecta payloads de prompt injection para evitar memoria contaminada."""
+    return bool(_PROMPT_INJECTION_RE.search(text or ""))
+
+
+def sanitize_memory_text(text: str) -> str:
+    """Neutraliza etiquetas de control en fragmentos recuperados de memoria."""
+    cleaned = re.sub(r"<\s*/?\s*(system|assistant|user|instruction)\s*>", "[tag]", text or "", flags=re.IGNORECASE)
+    return cleaned.strip()
+
 _STOPWORDS = {
     "de",
     "la",
@@ -442,12 +466,23 @@ class HierarchicalMemoryStore:
             return {"ok": False, "error": "El contenido del recuerdo no puede estar vacío"}
         if contains_sensitive_secret(clean_content) or contains_sensitive_secret(clean_title):
             return {"ok": False, "error": "Bloqueado por privacidad: el recuerdo contiene credenciales o secretos"}
+        if contains_prompt_injection(clean_content) or contains_prompt_injection(clean_title):
+            return {"ok": False, "error": "Bloqueado por seguridad: patrón de prompt injection detectado"}
 
         now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         now_ms = int(time.time() * 1000)
         ctx = dict(context or {})
         ctx.setdefault("category", norm_cat)
         ctx.setdefault("project_path", norm_proj)
+        if "fact_type" not in ctx:
+            if norm_status == "provisional":
+                ctx["fact_type"] = "proposal"
+            elif norm_tier == "user":
+                ctx["fact_type"] = "preference"
+            elif norm_cat in {"hypothetical_inference", "inferred"}:
+                ctx["fact_type"] = "inference"
+            else:
+                ctx["fact_type"] = "fact"
         if session_id:
             ctx.setdefault("session_id", session_id)
         ev_json = json.dumps(evidence or {}, ensure_ascii=False)
@@ -460,19 +495,24 @@ class HierarchicalMemoryStore:
         new_tokens = tokenize_meaningful(f"{clean_title} {clean_content}")
 
         with self._connect() as conn:
-            # 1. Búsqueda de duplicado exacto por fingerprint (solo en recuerdos activos)
+            # 1. Búsqueda de duplicado exacto por fingerprint (solo en recuerdos activos con misma polaridad)
+            new_neg = bool(_NEGATION_RE.search(clean_content))
             existing = conn.execute(
                 "SELECT * FROM memories WHERE fingerprint = ? AND tier = ? AND project_path = ? AND status IN ('valid', 'provisional')",
                 (fp, norm_tier, norm_proj),
             ).fetchone()
+            if existing is not None and bool(_NEGATION_RE.search(existing["content"] or "")) != new_neg:
+                existing = None
 
-            # 2. Búsqueda de duplicado semántico/léxico en el mismo tier y proyecto
+            # 2. Búsqueda de duplicado semántico/léxico en el mismo tier y proyecto (misma polaridad)
             if existing is None:
                 candidates = conn.execute(
                     "SELECT * FROM memories WHERE tier = ? AND category = ? AND project_path = ? AND status IN ('valid', 'provisional') ORDER BY epoch_ms DESC LIMIT 40",
                     (norm_tier, norm_cat, norm_proj),
                 ).fetchall()
                 for cand in candidates:
+                    if bool(_NEGATION_RE.search(cand["content"] or "")) != new_neg:
+                        continue
                     cand_tokens = tokenize_meaningful(f"{cand['title']} {cand['content']}")
                     if jaccard_similarity(new_tokens, cand_tokens) >= similarity_threshold:
                         existing = cand
@@ -582,12 +622,56 @@ class HierarchicalMemoryStore:
                 ),
             )
             self._sync_fts_row(conn, mem_id, clean_title, clean_content, ctx_json)
+
+            # 3. Resolución automática de contradicciones (Mem0-style) en tier 'project' o 'user'
+            superseded_ids: list[str] = []
+            if norm_status == "valid" and norm_tier in {"project", "user"}:
+                new_neg = bool(_NEGATION_RE.search(clean_content))
+                peer_rows = conn.execute(
+                    """
+                    SELECT id, title, content, confidence, embedding_json
+                    FROM memories
+                    WHERE id != ? AND tier = ? AND project_path = ? AND status = 'valid'
+                    ORDER BY epoch_ms DESC LIMIT 40
+                    """,
+                    (mem_id, norm_tier, norm_proj),
+                ).fetchall()
+                for pr in peer_rows:
+                    peer_neg = bool(_NEGATION_RE.search(pr["content"] or ""))
+                    if peer_neg == new_neg:
+                        continue
+                    peer_tokens = tokenize_meaningful(f"{pr['title']} {pr['content']}")
+                    jacc = jaccard_similarity(new_tokens, peer_tokens)
+                    cos = 0.0
+                    try:
+                        cos = cosine_similarity(emb_vec, json.loads(pr["embedding_json"] or "[]"))
+                    except Exception:
+                        pass
+                    if (jacc >= 0.42 or cos >= 0.70) and bounded_conf >= float(pr["confidence"] or 0.0):
+                        conn.execute(
+                            "UPDATE memories SET status = 'superseded', superseded_by = ?, updated_at = ? WHERE id = ?",
+                            (mem_id, now_iso, pr["id"]),
+                        )
+                        superseded_ids.append(pr["id"])
+
+                if superseded_ids:
+                    cur_rels = list(relations or [])
+                    for sid in superseded_ids:
+                        entry = {"target_id": sid, "type": "supersedes"}
+                        if entry not in cur_rels:
+                            cur_rels.append(entry)
+                    conn.execute(
+                        "UPDATE memories SET relations_json = ? WHERE id = ?",
+                        (json.dumps(cur_rels, ensure_ascii=False), mem_id),
+                    )
+
             conn.commit()
 
         return {
             "ok": True,
             "id": mem_id,
             "deduplicated": False,
+            "superseded_ids": superseded_ids,
             "tier": norm_tier,
             "category": norm_cat,
             "status": norm_status,
@@ -1009,7 +1093,9 @@ class HierarchicalMemoryStore:
         included_ids: list[str] = []
         for label, group in (("USER", user_mems), ("PROJECT", project_mems), ("EXPERIENCE", exp_mems), ("SESSION", sess_mems)):
             for m in group:
-                snippet = f"[{label}:{m['category']}] {m['title']} — {m['content'][:220].replace(chr(10), ' ')}"
+                safe_title = sanitize_memory_text(m["title"])
+                safe_content = sanitize_memory_text(m["content"][:220].replace("\n", " "))
+                snippet = f"[{label}:{m['category']}] {safe_title} — {safe_content}"
                 if used_chars + len(snippet) + 1 > max_chars:
                     break
                 lines.append(snippet)
@@ -1076,6 +1162,21 @@ class HierarchicalMemoryStore:
                 consolidated.append(res)
 
         return {"ok": True, "consolidated_count": len(consolidated), "items": consolidated}
+
+    def prune_expired_memories(self) -> dict:
+        """Marca como expirados los recuerdos cuya fecha valid_until ya venció."""
+        now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE memories
+                SET status = 'expired', updated_at = ?
+                WHERE status IN ('valid', 'provisional') AND valid_until IS NOT NULL AND valid_until < ?
+                """,
+                (now_iso, now_iso),
+            )
+            conn.commit()
+            return {"ok": True, "expired_count": cur.rowcount, "checked_at": now_iso}
 
     def get_summary(self) -> dict:
         self.seed_defaults_if_empty()

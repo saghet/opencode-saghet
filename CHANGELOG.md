@@ -1,5 +1,14 @@
 # Changelog — OpenCode-Saghet
 
+## [v0.4.0-cognitive-evolution-v3] — 2026-11-21
+
+### Cognitive Evolution Engine V3
+- **Saghet Repo Intelligence Engine ([scripts/memory/project_intelligence.py](scripts/memory/project_intelligence.py)):** Soporte `.gitignore`/`.saghetignore` y filtro de secretos, caché por contenido `sha256`, extracción estructural multilenguaje (Python AST, JS/TS/Rust/Go/Bash), `build_repo_map()` con PageRank sobre grafo de dependencias, detección de ciclos circulares, puntos de entrada, bloques duplicados, `trace_execution_paths()`, búsqueda híbrida FTS5+símbolos (`search_hybrid`) y selección acotada de contexto (`select_relevant_context`).
+- **Cognitive Memory Engine ([scripts/memory/hierarchical_memory.py](scripts/memory/hierarchical_memory.py)):** Resolución automática de contradicciones Mem0-style en `project`/`user`, escudo contra *prompt injection* en memoria (`contains_prompt_injection`, `sanitize_memory_text`), clasificación explícita `fact_type` (`fact | inference | preference | proposal`) y expiración/limpieza (`prune_expired_memories`).
+- **Continuous Improvement Engine ([scripts/memory/experiment_registry.py](scripts/memory/experiment_registry.py)):** Registro científico de experimentos (problema, evidencia, hipótesis, cambio, prueba controlada, métricas antes/después, impacto en recursos y decisión `ACCEPTED | REJECTED | ROLLED_BACK`), análisis automático de oportunidades sobre `outcome_records` y bloqueo de mutaciones autónomas en políticas de seguridad.
+- **Autonomous Engineering Loop, SmartModelRouter & Dashboard ([scripts/harness/workflow_engine.py](scripts/harness/workflow_engine.py), [scripts/supervisor/quality_supervisor.py](scripts/supervisor/quality_supervisor.py), [scripts/supervisor/cognitive_bridge.py](scripts/supervisor/cognitive_bridge.py), [scripts/eval/model_lab.py](scripts/eval/model_lab.py), [dashboard/server.py](dashboard/server.py)):** Integración viva de `CognitiveBridge` en `HarnessWorkflowEngine`, prevención de delegaciones redundantes, recuperación ante `git_conflict`/`edit_mismatch`/`tool_timeout`/`premature_stop`, `Independent Review 2.0` por `task_type`, especialidades `research`/`debugging`/`memory` con ajuste empírico histórico en `SmartModelRouter` (preservando política RTX 4060 8 GB VRAM) y endpoints `/api/cognitive/status`, `/api/cognitive/repo-map` y `/api/cognitive/experiments`.
+- **Benchmarks y Pruebas ([tests/benchmarks/run_cognitive_benchmarks.py](tests/benchmarks/run_cognitive_benchmarks.py), [tests/test_phase9_cognitive_evolution_v3.py](tests/test_phase9_cognitive_evolution_v3.py)):** Suite cognitiva ampliada a 20 escenarios reproducibles (`20/20`, `100.0 %`) y 35 pruebas unitarias (`35/35`).
+
 ## [v0.3.0-cognitive-v2] — 2026-11-21
 
 ### Saghet Cognitive Intelligence V2
