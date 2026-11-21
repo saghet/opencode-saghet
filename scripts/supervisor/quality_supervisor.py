@@ -51,6 +51,69 @@ _EVIDENCE_PATH_RE = re.compile(
     r"([a-zA-Z0-9_./-]+\.(?:py|js|ts|json|jsonc|sh|md|toml|html|css|sql)|#[Ll]\d+|\bRan\s+\d+\s+tests?\b|\b\[OK\]\b)",
 )
 
+# Taxonomía de 10 clases de error para Self-Debugging Avanzado (Fase 6)
+_ERROR_TAXONOMY: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("syntax_error", re.compile(r"\b(SyntaxError|IndentationError|TabError|unexpected\s+token|parse\s+error)\b", re.IGNORECASE)),
+    ("compilation_error", re.compile(r"\b(TypeScript|tsc|rustc|gcc|clang|compile\s+error|type\s+error|NameError|AttributeError)\b", re.IGNORECASE)),
+    ("dependency_error", re.compile(r"\b(ModuleNotFoundError|ImportError|Cannot\s+find\s+module|ENOENT.*node_modules|pip|npm\s+ERR)\b", re.IGNORECASE)),
+    ("permission_error", re.compile(r"\b(PermissionError|EACCES|EROFS|Read-only\s+file\s+system|forbidden|401|403)\b", re.IGNORECASE)),
+    ("integration_error", re.compile(r"\b(ConnectionRefusedError|Connection\s+refused|timeout|timed\s+out|JSON-RPC|ACP|HTTP\s+5\d\d)\b", re.IGNORECASE)),
+    ("tool_error", re.compile(r"\b(skill_agent_confusion|webfetch_invalid_json_format|edit_oldstring_mismatch|tool\s+error)\b", re.IGNORECASE)),
+    ("reasoning_error", re.compile(r"\b(reasoning_contradiction|reasoning_loop|unverified_assumption|incomplete_implementation)\b", re.IGNORECASE)),
+    ("architecture_error", re.compile(r"\b(circular\s+import|ciclo\s+detectado|contract\s+mismatch|schema\s+mismatch|architectur)\b", re.IGNORECASE)),
+    ("model_error", re.compile(r"\b(empty_or_trivial_response|reasoning_starvation|silent_premature_stop|ollama.*error)\b", re.IGNORECASE)),
+    ("functional_error", re.compile(r"\b(AssertionError|FAILED|test_execution_failed|mismatch|expected\s+.*\s+got)\b", re.IGNORECASE)),
+)
+
+_SECURITY_DIFF_RE = re.compile(
+    r"(\beval\s*\(|\bexec\s*\(|shell\s*=\s*True|\bos\.system\s*\(|sk-[a-zA-Z0-9]{16,}|password\s*=\s*['\"][^'\"]+['\"])",
+    re.IGNORECASE,
+)
+
+
+def classify_error(error_text: str, test_returncode: int | None = None) -> str:
+    """Clasifica un fallo en una de las 10 categorías de error de ingeniería."""
+    combined = (error_text or "").strip()
+    for err_class, pat in _ERROR_TAXONOMY:
+        if pat.search(combined):
+            return err_class
+    if test_returncode is not None and test_returncode != 0:
+        return "functional_error"
+    return "functional_error"
+
+
+def recommend_recovery_strategy(
+    error_class: str,
+    iteration: int,
+    previous_errors: list[str] | None = None,
+) -> str:
+    """
+    Selecciona estrategia de recuperación y fuerza cambio de enfoque si falla repetidamente.
+    """
+    prev = previous_errors or []
+    repeated = len(prev) >= 2 and prev[-1] == error_class
+    if iteration >= 3:
+        return "rollback_worktree_and_escalate"
+    if repeated or iteration == 2:
+        if error_class in {"architecture_error", "integration_error", "dependency_error"}:
+            return "inspect_dependencies_and_replan_dag"
+        if error_class in {"model_error", "reasoning_error"}:
+            return "switch_to_fallback_model_and_narrow_scope"
+        return "analyze_root_cause_and_rewrite_patch"
+    strategy_by_class = {
+        "syntax_error": "fix_syntax_and_reparse",
+        "compilation_error": "fix_types_and_imports",
+        "dependency_error": "verify_environment_and_imports",
+        "permission_error": "use_isolated_worktree_or_ask_permission",
+        "integration_error": "check_service_health_and_contract",
+        "tool_error": "correct_tool_arguments_and_retry",
+        "reasoning_error": "enforce_evidence_and_stepwise_verification",
+        "architecture_error": "review_contracts_with_architect",
+        "model_error": "retry_with_structured_prompt_or_fallback_model",
+        "functional_error": "debug_failing_assertion_and_patch",
+    }
+    return strategy_by_class.get(error_class, "debug_failing_assertion_and_patch")
+
 
 @dataclass
 class SubTaskNode:
@@ -133,6 +196,41 @@ class TaskDependencyDAG:
     def get_ready_tasks(self) -> list[SubTaskNode]:
         self.refresh_states()
         return [n for n in self.nodes.values() if n.status == "READY"]
+
+    def replan_after_failure(
+        self,
+        failed_task_id: str,
+        recovery_specialist: str = "senior-developer",
+        reason: str = "",
+    ) -> dict:
+        """Replanifica un nodo fallido creando un nodo de recuperación y redirigiendo dependientes."""
+        failed = self.nodes.get(failed_task_id)
+        if failed is None:
+            return {"ok": False, "error": f"Nodo no encontrado: {failed_task_id}"}
+
+        rec_id = f"{failed_task_id}_recovery"
+        if rec_id in self.nodes:
+            return {"ok": False, "error": f"Ya existe un nodo de recuperación para {failed_task_id}"}
+
+        self.add_task(
+            task_id=rec_id,
+            title=f"recovery ({recovery_specialist}): {reason[:80] or failed.title}",
+            specialist=recovery_specialist,
+            dependencies=list(failed.dependencies),
+            max_iterations=2,
+        )
+        # Re-enlazar nodos que dependían del nodo fallido para que dependan de la recuperación
+        relinked: list[str] = []
+        for nid, node in self.nodes.items():
+            if nid in {failed_task_id, rec_id}:
+                continue
+            if failed_task_id in node.dependencies:
+                node.dependencies = [rec_id if d == failed_task_id else d for d in node.dependencies]
+                if node.status == "BLOCKED":
+                    node.status = "PENDING"
+                relinked.append(nid)
+        self.refresh_states()
+        return {"ok": True, "recovery_task_id": rec_id, "relinked_tasks": relinked}
 
     def to_dict(self) -> dict:
         acyclic, order = self.validate_acyclic()
@@ -265,23 +363,38 @@ class QualitySupervisor:
         self.max_iterations = max(1, min(5, max_iterations))
 
     def plan_execution(self, objective: str, directory: Path | None = None, context_files: list[str] | None = None) -> dict:
-        """Pasos 1–4: Gentle AI clasifica objetivo, selecciona modelo y construye el DAG de subtareas."""
-        routing = classify_and_route(objective, context_files)
+        """Pasos 1–4: Gentle AI clasifica objetivo, selecciona modelo y construye el DAG adaptativo de subtareas."""
+        routing = classify_and_route(
+            objective,
+            context_files=context_files,
+            project_path=str(directory) if directory else "*",
+        )
         gentle_status = get_gentle_ai_status(directory)
         dag = TaskDependencyDAG()
+        reasoning_plan = routing.get("reasoning_plan") or {}
 
-        prev_task_id: str | None = None
-        for step in routing["pipeline"]:
-            tid = f"step_{step['step']}_{step['agent']}"
-            deps = [prev_task_id] if prev_task_id else []
+        if not reasoning_plan.get("use_dag", True):
+            # Tarea simple/directa: evitar DAG multiagente innecesario
             dag.add_task(
-                task_id=tid,
-                title=f"{step['role']} ({step['agent']})",
-                specialist=step["agent"],
-                dependencies=deps,
-                max_iterations=self.max_iterations,
+                task_id="step_1_direct",
+                title=f"{reasoning_plan.get('strategy', 'direct_response')} ({routing['primary_specialist']})",
+                specialist=routing["primary_specialist"],
+                dependencies=[],
+                max_iterations=1,
             )
-            prev_task_id = tid
+        else:
+            prev_task_id: str | None = None
+            for step in routing["pipeline"]:
+                tid = f"step_{step['step']}_{step['agent']}"
+                deps = [prev_task_id] if prev_task_id else []
+                dag.add_task(
+                    task_id=tid,
+                    title=f"{step['role']} ({step['agent']})",
+                    specialist=step["agent"],
+                    dependencies=deps,
+                    max_iterations=self.max_iterations,
+                )
+                prev_task_id = tid
 
         plan = {
             "plan_id": uuid.uuid4().hex[:12],
@@ -289,6 +402,7 @@ class QualitySupervisor:
             "objective_preview": (objective or "")[:200],
             "gentle_ai": gentle_status,
             "routing": routing,
+            "reasoning_plan": reasoning_plan,
             "dag": dag.to_dict(),
         }
         record_decision(
@@ -299,6 +413,9 @@ class QualitySupervisor:
                 "verdict": "PLANNED",
                 "complexity": routing["complexity"],
                 "risk": routing["risk"],
+                "strategy": reasoning_plan.get("strategy"),
+                "use_dag": reasoning_plan.get("use_dag"),
+                "token_budget": reasoning_plan.get("token_budget"),
                 "selected_model": routing["selected_model"],
                 "primary_specialist": routing["primary_specialist"],
                 "worktree_required": routing["worktree_required"],
@@ -351,6 +468,8 @@ class QualitySupervisor:
 
         all_issues = reasoning_issues + evidence_issues
         can_retry = iteration < self.max_iterations
+        error_class = classify_error("\n".join([*all_issues, test_output or "", agent_output or ""]), test_returncode) if all_issues else None
+        recovery_strategy = recommend_recovery_strategy(error_class, iteration) if error_class else None
 
         if not all_issues and (reviewer_verdict in {None, "APPROVED"}):
             verdict = "ACCEPT"
@@ -361,6 +480,7 @@ class QualitySupervisor:
             next_action = f"retry_attempt_{iteration + 1}_of_{self.max_iterations}"
             correction_prompt = (
                 f"[SUPERVISOR DE CALIDAD — CORRECCIÓN REQUERIDA (Intento {iteration + 1}/{self.max_iterations})]\n"
+                f"Clase de error: {error_class} | Estrategia recomendada: {recovery_strategy}\n"
                 f"Tu entrega anterior para '{agent}' fue rechazada por los siguientes defectos verificables:\n"
                 + "\n".join(f"- {iss}" for iss in all_issues)
                 + "\nCorrige los defectos, ejecuta las pruebas reales y adjunta rutas, diffs y salidas observadas."
@@ -380,6 +500,8 @@ class QualitySupervisor:
             "is_readonly": ro,
             "verdict": verdict,
             "next_action": next_action,
+            "error_class": error_class,
+            "recovery_strategy": recovery_strategy,
             "reasoning_errors": reasoning_issues,
             "missing_evidence": evidence_issues,
             "reviewer_verdict": reviewer_verdict or ("APPROVED" if not all_issues else "PENDING"),
@@ -426,3 +548,62 @@ class QualitySupervisor:
         except Exception:
             pass
         return decision
+
+    def run_independent_review(
+        self,
+        objective: str,
+        acceptance_criteria: list[str] | None = None,
+        diff_files: list[str] | None = None,
+        diff_text: str = "",
+        test_output: str = "",
+        test_returncode: int | None = None,
+        affected_dependencies: list[str] | None = None,
+        reviewer_claim: str = "",
+    ) -> dict:
+        """
+        Independent Review 2.0 (Fase 6):
+        No acepta un simple 'APPROVED' textual como prueba. Verifica diff real, pruebas ejecutables,
+        criterios de aceptación, ausencia de placeholders/riesgos de seguridad y dependencias afectadas.
+        """
+        findings: list[str] = []
+        changed = list(diff_files or [])
+        criteria = list(acceptance_criteria or [])
+        deps = list(affected_dependencies or [])
+
+        if not changed and not diff_text.strip():
+            findings.append("incomplete_solution: No hay archivos modificados ni diff real.")
+        if _PLACEHOLDER_RE.search(diff_text):
+            findings.append("incomplete_solution: El diff contiene placeholders o código truncado (TODO/NotImplementedError).")
+        if _SECURITY_DIFF_RE.search(diff_text):
+            findings.append("security_risk: El diff introduce patrones peligrosos (eval/exec/shell=True/os.system/secretos).")
+        if test_returncode is None:
+            findings.append("insufficient_tests: No existe evidencia ejecutable de pruebas (test_returncode ausente).")
+        elif test_returncode != 0 or _TEST_FAILURE_RE.search(test_output):
+            findings.append(f"regression_or_test_failure: Las pruebas fallaron (returncode={test_returncode}).")
+
+        code_changed = [f for f in changed if f.endswith((".py", ".js", ".ts", ".sh"))]
+        if code_changed and not any("test" in f.lower() for f in changed) and "Ran " not in test_output and "PASSED" not in test_output.upper():
+            findings.append("insufficient_tests: Se modificó código sin evidencia clara de cobertura de pruebas.")
+
+        # Verificar si algún archivo dependiente crítico quedó sin revisar/probar
+        unverified_deps = [d for d in deps if d not in changed and d.endswith((".py", ".ts", ".js"))]
+        if unverified_deps and test_returncode != 0:
+            findings.append(f"dependency_regression_risk: Dependencias afectadas no validadas ({', '.join(unverified_deps[:4])}).")
+
+        # Verificar contradicción entre criterios de aceptación y diff cuando hay criterios explícitos
+        if criteria and diff_text.strip():
+            low_diff = (diff_text + " " + " ".join(changed)).lower()
+            for crit in criteria:
+                key_tokens = [w for w in re.findall(r"[a-zA-Z_]{4,}", crit.lower()) if w not in {"debe", "para", "with", "that", "this"}]
+                if key_tokens and not any(tok in low_diff for tok in key_tokens):
+                    findings.append(f"criteria_mismatch: El criterio '{crit[:80]}' no tiene respaldo visible en el diff.")
+
+        approved = len(findings) == 0
+        return {
+            "verdict": "APPROVED" if approved else "CHANGES_REQUESTED",
+            "executable_evidence_verified": test_returncode == 0,
+            "bare_approval_rejected": (not approved) and ("APPROVED" in (reviewer_claim or "").upper()),
+            "findings": findings,
+            "diff_files_count": len(changed),
+            "affected_dependencies_checked": len(deps),
+        }

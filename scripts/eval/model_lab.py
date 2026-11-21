@@ -278,21 +278,37 @@ def compute_verifiable_score(metrics: dict, specialty: str = "coding") -> dict:
 
     derived = {
         **metrics,
-        "speed_score": speed_score,
-        "vram_efficiency_score": vram_eff,
+        "speed_score": speed_score if "tok_per_s" in metrics else None,
+        "vram_efficiency_score": vram_eff if "peak_vram_mib" in metrics else None,
     }
 
+    unknown_metrics: list[str] = []
     raw_score = 0.0
     for metric_key, weight in weights.items():
-        raw_score += float(derived.get(metric_key, 0.0)) * weight
+        val = derived.get(metric_key)
+        if val is None:
+            unknown_metrics.append(metric_key)
+        else:
+            raw_score += float(val) * weight
+
+    if len(unknown_metrics) == len(weights):
+        return {
+            "specialty": specialty,
+            "raw_score": None,
+            "penalty": None,
+            "verifiable_score": None,
+            "evaluation_status": "unknown",
+            "unknown_metrics": unknown_metrics,
+            "fits_8gb_vram": 0 < peak_vram <= VRAM_SAFE_BUDGET_MIB,
+        }
 
     # Penalización por regresiones introducidas
     reg_rate = float(metrics.get("regression_rate_pct", 0.0))
     penalty = reg_rate * 0.45
 
     # Penalización si la especialidad requiere tool-calling y el modelo no es confiable (< 50%)
-    tool_rel = float(metrics.get("tool_calling_reliability_pct", 0.0))
-    if specialty in {"coding", "classification"} and tool_rel < 50.0:
+    tool_rel = metrics.get("tool_calling_reliability_pct")
+    if specialty in {"coding", "classification"} and tool_rel is not None and float(tool_rel) < 50.0:
         penalty += 20.0
 
     # Penalización por desbordamiento físico de VRAM (> 8188 MiB)
@@ -305,6 +321,8 @@ def compute_verifiable_score(metrics: dict, specialty: str = "coding") -> dict:
         "raw_score": round(raw_score, 2),
         "penalty": round(penalty, 2),
         "verifiable_score": final_score,
+        "evaluation_status": "partial" if unknown_metrics else "measured",
+        "unknown_metrics": unknown_metrics,
         "fits_8gb_vram": 0 < peak_vram <= VRAM_SAFE_BUDGET_MIB,
     }
 
@@ -507,6 +525,22 @@ class SmartModelRouter:
             primary = "ollama/qwen3.5:9b"
             vram_swap_avoided = True
             reason = "Reutiliza 'ollama/qwen3.5:9b' ya residente en VRAM para evitar penalización de swap (MAX_LOADED_MODELS=1)."
+        elif avoid_vram_swap and vram_loaded and not allow_heavy_cpu_offload:
+            # Histéresis anti-swap: conservar modelo residente si el cambio no supera margen de 5.0 pts
+            clean_primary = primary[len("ollama/") :] if primary.startswith("ollama/") else primary
+            if clean_primary not in vram_loaded:
+                pri_entry = self.get_model_entry(primary)
+                pri_score = compute_verifiable_score(pri_entry.get("metrics") or {}, spec).get("verifiable_score") if pri_entry else None
+                for loaded_name in vram_loaded:
+                    loaded_entry = self.get_model_entry(loaded_name)
+                    if not loaded_entry or not loaded_entry.get("tools_supported", True):
+                        continue
+                    loaded_score = compute_verifiable_score(loaded_entry.get("metrics") or {}, spec).get("verifiable_score")
+                    if loaded_score is not None and (pri_score is None or (pri_score - loaded_score) <= 5.0):
+                        primary = f"ollama/{loaded_name}" if not loaded_name.startswith("ollama/") else loaded_name
+                        vram_swap_avoided = True
+                        reason = f"Histéresis VRAM: mantiene '{primary}' residente (diferencia <= 5.0 pts no justifica swap)."
+                        break
 
         if spec == "architecture" and allow_heavy_cpu_offload:
             primary = "ollama/devstral-small-2:latest"

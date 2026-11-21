@@ -590,8 +590,17 @@ def bench_09_multi_agent_execution(model: str, supervisor: QualitySupervisor) ->
                 return {"ok": bool(code), "output": f"Implementado token_bucket.py ({len(code)} bytes)"}
             if nid == "step3_reviewer":
                 code_txt = (proj / "token_bucket.py").read_text(encoding="utf-8")
-                ok_ast = score_python_code_quality(code_txt) >= 60.0
-                return {"ok": ok_ast, "output": "APPROVED: token_bucket.py#L1 cumple contrato"}
+                pre_qa = _run_unittest(proj)
+                rev = supervisor.run_independent_review(
+                    objective="Implementar can_consume(available, requested)",
+                    acceptance_criteria=["can_consume"],
+                    diff_files=["token_bucket.py", "test_token_bucket.py"],
+                    diff_text=code_txt,
+                    test_output=pre_qa.stdout + pre_qa.stderr,
+                    test_returncode=pre_qa.returncode,
+                )
+                ok_rev = rev["verdict"] == "APPROVED" and score_python_code_quality(code_txt) >= 60.0
+                return {"ok": ok_rev, "output": f"{rev['verdict']}: {rev['findings']}", "error": None if ok_rev else "; ".join(rev["findings"])}
             if nid == "step4_qa":
                 res = _run_unittest(proj)
                 return {"ok": res.returncode == 0, "output": res.stderr.strip(), "error": res.stderr if res.returncode != 0 else None}
@@ -687,7 +696,11 @@ def bench_10_fault_recovery(model: str, supervisor: QualitySupervisor) -> dict:
         }
 
 
-def run_all_benchmarks(model: str = "qwen3.5:9b", out_path: Path | None = DEFAULT_BENCH_OUT) -> dict:
+def run_all_benchmarks(
+    model: str = "qwen3.5:9b",
+    out_path: Path | None = DEFAULT_BENCH_OUT,
+    force_write: bool = False,
+) -> dict:
     supervisor = QualitySupervisor(max_iterations=3)
     t0 = time.perf_counter()
     runners = [
@@ -721,7 +734,8 @@ def run_all_benchmarks(model: str = "qwen3.5:9b", out_path: Path | None = DEFAUL
         "artificial_test_mutations_allowed": False,
         "results": results,
     }
-    if out_path:
+    has_live_tokens = any(r.get("tokens", 0) > 0 for r in results)
+    if out_path and (has_live_tokens or force_write):
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return report
@@ -731,9 +745,10 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="OpenCode-Saghet 10 Intelligence Benchmarks Runner")
     parser.add_argument("--model", default="qwen3.5:9b")
     parser.add_argument("--out", default=str(DEFAULT_BENCH_OUT))
+    parser.add_argument("--force-write", action="store_true", help="Escribir archivo incluso si Ollama no respondió")
     args = parser.parse_args()
 
-    rep = run_all_benchmarks(model=args.model, out_path=Path(args.out))
+    rep = run_all_benchmarks(model=args.model, out_path=Path(args.out), force_write=args.force_write)
     print(json.dumps(rep, indent=2, ensure_ascii=False))
     if rep["passed_benchmarks"] != rep["total_benchmarks"]:
         sys.exit(1)

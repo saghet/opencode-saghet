@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -24,6 +25,26 @@ import uuid
 from pathlib import Path
 
 from scripts.supervisor.gentle_ai_bridge import classify_and_route
+
+_PROMPT_INJECTION_RE = re.compile(
+    r"(?i)(ignore\s+(?:all\s+)?previous\s+instructions|override\s+allowlist|"
+    r"disable\s+security|reveal\s+system\s+prompt|rm\s+-rf\s+/)"
+)
+
+
+def sanitize_untrusted_content(text: str) -> dict:
+    """
+    Trata archivos, repositorios y respuestas de herramientas como datos no confiables,
+    detectando y neutralizando intentos de prompt injection.
+    """
+    raw = text or ""
+    hits = _PROMPT_INJECTION_RE.findall(raw)
+    sanitized = _PROMPT_INJECTION_RE.sub("[BLOCKED_UNTRUSTED_INSTRUCTION]", raw)
+    return {
+        "injection_detected": bool(hits),
+        "matches": hits[:5],
+        "sanitized_text": sanitized,
+    }
 
 REPO_DIR = Path(__file__).resolve().parent.parent.parent
 HARNESS_CONFIG_PATH = REPO_DIR / "config" / "harness.json"
@@ -244,6 +265,47 @@ class DecoupledACPAdapter:
             "directory": directory,
             "acp_frame": acp_request,
             "routing": routing,
+        }
+
+    def execute_acp_stdio(self, request_frame: dict, cwd: str | None = None, timeout_s: float = 15.0) -> dict:
+        """
+        Ejecuta una trama ACP JSON-RPC 2.0 real contra `opencode acp` vía stdio.
+        Nunca simula éxito si el proceso falla o no responde JSON-RPC válido.
+        """
+        valid, reason = ACPContract.validate_frame(request_frame)
+        if not valid:
+            return {"ok": False, "error": f"Trama ACP inválida: {reason}"}
+
+        payload_line = json.dumps(request_frame, ensure_ascii=False) + "\n"
+        try:
+            res = subprocess.run(
+                [OPENCODE_BIN, "acp"],
+                input=payload_line,
+                cwd=cwd or str(REPO_DIR),
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                check=False,
+            )
+        except Exception as exc:
+            return {"ok": False, "error": f"Fallo ejecutando opencode acp: {exc}"}
+
+        for line in res.stdout.splitlines():
+            line = line.strip()
+            if not line.startswith("{"):
+                continue
+            try:
+                frame = json.loads(line)
+                ok_frame, _ = ACPContract.validate_frame(frame)
+                if ok_frame:
+                    return {"ok": "error" not in frame, "frame": frame, "returncode": res.returncode}
+            except Exception:
+                continue
+
+        return {
+            "ok": False,
+            "returncode": res.returncode,
+            "error": (res.stderr or res.stdout or "Sin respuesta JSON-RPC 2.0 de opencode acp").strip()[:400],
         }
 
     def get_status(self) -> dict:
