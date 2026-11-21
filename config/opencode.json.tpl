@@ -812,7 +812,7 @@
           "tools": false,
           "limit": {
             "context": 16384,
-            "output": 4096
+            "output": 2048
           }
         },
         "huihui_ai/deepseek-r1-abliterated:8b-0528-qwen3": {
@@ -821,7 +821,7 @@
           "tools": false,
           "limit": {
             "context": 16384,
-            "output": 4096
+            "output": 2048
           }
         },
         "huihui_ai/qwen3.5-abliterated:latest": {

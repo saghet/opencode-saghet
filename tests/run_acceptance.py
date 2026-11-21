@@ -205,6 +205,10 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             m_lim = oc_cfg["provider"]["ollama"]["models"][m_id]["limit"]
             self.assertEqual(m_lim["context"], 22528)
             self.assertEqual(m_lim["output"], 2560)
+        for r1_id in ("deepseek-r1:8b", "huihui_ai/deepseek-r1-abliterated:8b-0528-qwen3"):
+            r1_lim = oc_cfg["provider"]["ollama"]["models"][r1_id]["limit"]
+            self.assertEqual(r1_lim["context"], 16384)
+            self.assertLessEqual(r1_lim["output"], 2048)
         self.assertEqual(dcp_cfg["strategies"]["purgeErrors"]["turns"], 2)
 
         mem_cfg = json.loads((CFG_DIR / "opencode-mem.jsonc").read_text(encoding="utf-8"))
