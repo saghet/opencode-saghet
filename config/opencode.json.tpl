@@ -753,24 +753,24 @@
           "name": "qwen3.5:4b",
           "tools": true,
           "limit": {
-            "context": 16384,
-            "output": 4096
+            "context": 24576,
+            "output": 2048
           }
         },
         "qwen3.5:9b": {
           "name": "qwen3.5:9b",
           "tools": true,
           "limit": {
-            "context": 16384,
-            "output": 3072
+            "context": 24576,
+            "output": 2048
           }
         },
         "abliterant/qwen3.5-rana:9b": {
           "name": "abliterant/qwen3.5-rana:9b",
           "tools": true,
           "limit": {
-            "context": 16384,
-            "output": 4096
+            "context": 24576,
+            "output": 2048
           }
         },
         "qwen3:8b": {

@@ -196,8 +196,14 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         # 1. Verify VRAM alignment in opencode-mem.jsonc and anti-compaction-storm settings in dcp.jsonc
         dcp_cfg = json.loads((CFG_DIR / "dcp.jsonc").read_text(encoding="utf-8"))
         self.assertTrue(dcp_cfg["compress"]["protectUserMessages"], "dcp.jsonc debe proteger mensajes del usuario")
-        self.assertEqual(dcp_cfg["compress"]["minContextLimit"], 6500)
-        self.assertEqual(dcp_cfg["compress"]["maxContextLimit"], 13500)
+        self.assertEqual(dcp_cfg["compress"]["minContextLimit"], 9000)
+        self.assertEqual(dcp_cfg["compress"]["maxContextLimit"], 19500)
+
+        oc_cfg = json.loads((CFG_DIR / "opencode.json").read_text(encoding="utf-8"))
+        for m_id in ("qwen3.5:9b", "qwen3.5:4b", "abliterant/qwen3.5-rana:9b"):
+            m_lim = oc_cfg["provider"]["ollama"]["models"][m_id]["limit"]
+            self.assertEqual(m_lim["context"], 24576)
+            self.assertEqual(m_lim["output"], 2048)
         self.assertEqual(dcp_cfg["strategies"]["purgeErrors"]["turns"], 2)
 
         mem_cfg = json.loads((CFG_DIR / "opencode-mem.jsonc").read_text(encoding="utf-8"))
