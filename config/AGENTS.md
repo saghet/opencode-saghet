@@ -18,7 +18,9 @@ Distribución profesional local-first sobre **OpenCode v2.3.2**, **Ollama 0.40.1
 
 - **Regla de Pausa (Gate de Confirmación):** Al entregar un análisis/plan, preguntar confirmación (ej. *"¿Deseas que inicie la Fase 1?"*) o completar una fase específica solicitada por el usuario, **DETENTE DE INMEDIATO**: termina el turno sin invocar ninguna herramienta (`bash`, `write`, `edit`, `subagent`, `read`) y espera la respuesta del usuario.
 - **Consultas o análisis de código:** Máximo **1–2 delegaciones** enfocadas (`fast-helper` para barrido rápido de archivos con `qwen3.5:4b` + `architect` o `code-reviewer` para síntesis). Prohibido encadenar 4+ subagentes para un análisis simple.
-- **Lecturas acotadas (evitar bucles de compactación):** Usa `grep` antes de abrir archivos grandes y llama a `read` en bloques de **máximo 150–200 líneas** (`offset` + `limit`). Nunca leas 300–1200 líneas en una sola llamada con contexto de 16k.
+- **Lecturas acotadas (evitar bucles de compactación y amnesia):** Usa `grep` antes de abrir archivos grandes y llama a `read` en bloques de **máximo 150–200 líneas** (`offset` + `limit`). Nunca leas 300–1200 líneas en una sola llamada con contexto de 16k, ni descargues payloads JSON masivos de `api.github.com` con `webfetch` o `execute`.
+- **Subagentes atómicos (`<= 5` pasos):** Todo subagente tiene `"subagent": false` (prohibida la recursión), debe recibir un `OBJETIVO INMUTABLE` con la ruta local ya clonada y verificada, y debe responder en un máximo de 5 llamadas de herramientas para evitar auto-compactaciones que borren su objetivo.
+- **Uso estricto de herramientas:** Prohibido llamar a `skill` con nombres de agentes (`researcher`, `architect`, etc.), prohibido ejecutar `ollama run` en `bash`, prohibido pasar `format: "json"` a `webfetch` y prohibido enviar código Python al sandbox JavaScript `execute`.
 - **No mutar en órdenes de análisis:** Si el usuario pide *"analiza"*, *"revisa"*, *"diagnostica"* o *"planifica"*, NO ejecutes la Fase D; entrega el informe + plan, propón iniciar la **Fase 1** y detente.
 
 ## Hardware y Control de Concurrencia (RTX 4060 Laptop — 8188 MiB VRAM)
