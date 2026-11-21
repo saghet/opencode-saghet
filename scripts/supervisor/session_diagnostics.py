@@ -65,6 +65,10 @@ def _strip_jsonc(raw: str) -> str:
 def _classify_tool_error(tool_name: str, tool_input: dict, error_message: str) -> str:
     t_name = (tool_name or "").strip().lower()
     err_low = (error_message or "").lower()
+    if "interaction cancelled because the location shut down" in err_low:
+        return "service_restart_interruption"
+    if t_name == "edit" and ("could not find oldstring" in err_low or "newstring is already in the file" in err_low):
+        return "edit_oldstring_mismatch"
     if t_name == "skill":
         skill_id = str((tool_input or {}).get("id") or (tool_input or {}).get("name") or "").strip()
         if skill_id in KNOWN_AGENT_NAMES or "unable to load skill" in err_low:
@@ -318,11 +322,15 @@ def analyze_recent_sessions(
         )
     if compaction_storms or amnesia_events:
         recommendations.append(
-            f"Detectadas {len(compaction_storms)} tormenta(s) de compactación y {len(amnesia_events)} evento(s) de amnesia histórica; mitigado con DCP minContextLimit=6500 y regla OBJETIVO INMUTABLE."
+            f"Detectadas {len(compaction_storms)} tormenta(s) de compactación y {len(amnesia_events)} evento(s) de amnesia histórica; mitigado con ventana 24k (output 2048), DCP 9k-19.5k y regla OBJETIVO INMUTABLE."
         )
     if error_counts_by_type.get("skill_agent_confusion"):
         recommendations.append(
             f"Registrados {error_counts_by_type['skill_agent_confusion']} error(es) históricos 'skill vs subagent'; mitigado con prohibición explícita y 'ollama run *: deny'."
+        )
+    if error_counts_by_type.get("edit_oldstring_mismatch"):
+        recommendations.append(
+            f"Registrados {error_counts_by_type['edit_oldstring_mismatch']} error(es) históricos 'Could not find oldString' en edit; mitigado con protocolo READ-BEFORE-EDIT y edición atómica."
         )
 
     if ollama_sockets["zombie_queue_detected"] or not mem_health["mitigated"]:

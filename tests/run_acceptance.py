@@ -922,6 +922,17 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
                                 "error": {"message": "Invalid arguments for tool webfetch"},
                             },
                         },
+                        {
+                            "type": "tool",
+                            "name": "edit",
+                            "state": {
+                                "status": "error",
+                                "input": {"path": "/tmp/cd.yml", "oldString": "run: gem install", "newString": "# pre-installed"},
+                                "error": {
+                                    "message": "Could not find oldString in /tmp/cd.yml. newString is already in the file, so this edit may already be applied."
+                                },
+                            },
+                        },
                     ],
                 }
                 conn.execute(
@@ -938,6 +949,7 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             self.assertEqual(len(diag["amnesia_events"]), 1)
             self.assertEqual(diag["error_counts_by_type"].get("skill_agent_confusion"), 1)
             self.assertEqual(diag["error_counts_by_type"].get("webfetch_invalid_json_format"), 1)
+            self.assertEqual(diag["error_counts_by_type"].get("edit_oldstring_mismatch"), 1)
             self.assertTrue(diag["opencode_mem_health"]["mitigated"])
 
 
