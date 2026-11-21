@@ -15,6 +15,7 @@ Distribución local-first sobre **OpenCode v2.3.2**, **Ollama 0.40.16**, **Gentl
 - **Presupuesto de Contexto (24k tokens):** Usa `grep` antes de leer archivos grandes y `read` en bloques `<= 150-200` líneas (`offset` + `limit`). Prohibido descargar payloads JSON masivos de APIs REST con `webfetch` o `execute`.
 - **Subagentes Secuenciales y Atómicos (`<= 5` pasos):** 1 solo subagente activo a la vez (`OLLAMA_MAX_LOADED_MODELS=1`). Todo subagente tiene `"subagent": false`, recibe un `OBJETIVO INMUTABLE` con rutas locales previamente clonadas/verificadas y resuelve en `<= 5` llamadas de herramientas.
 - **Uso Estricto de Herramientas:** Nunca llames a `skill` con nombres de agentes (`researcher`, `architect`, etc.), nunca ejecutes `ollama run` en `bash`, nunca pases `format: "json"` a `webfetch` y nunca envíes Python al sandbox JS `execute`.
+- **Protocolo `READ-BEFORE-EDIT` y Edición Atómica:** Prohibido ejecutar `edit` tras una compactación sin antes hacer `read` del archivo objetivo. En archivos cortos (`<= 120` líneas), consolida todos los cambios en un único `edit` atómico y nunca repitas un `edit` si `newString` ya está presente.
 
 ## Especialistas (13 Principales + 4 Bajo Demanda)
 1. `saghet-orchestrator` (`primary`, `ollama/qwen3.5:9b`): Director, enrutador Gentle AI y Supervisor de Calidad.
