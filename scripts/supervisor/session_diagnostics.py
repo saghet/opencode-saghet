@@ -108,6 +108,39 @@ def check_ollama_socket_health() -> dict:
     }
 
 
+def check_ollama_ctx_health(expected_ctx: int = 24576) -> dict:
+    """Verifica que los modelos locales principales tengan PARAMETER num_ctx sincronizado en Ollama."""
+    target_models = ("qwen3.5:9b", "qwen3.5:4b", "abliterant/qwen3.5-rana:9b")
+    model_ctx: dict[str, int | None] = {}
+    for m in target_models:
+        ctx_val: int | None = None
+        try:
+            res = subprocess.run(
+                ["ollama", "show", m, "--modelfile"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+            )
+            if res.returncode == 0:
+                for ln in res.stdout.splitlines():
+                    if ln.startswith("PARAMETER num_ctx "):
+                        parts = ln.split()
+                        if len(parts) >= 3 and parts[2].isdigit():
+                            ctx_val = int(parts[2])
+        except Exception:
+            ctx_val = None
+        model_ctx[m] = ctx_val
+
+    present_vals = [v for v in model_ctx.values() if v is not None]
+    all_synced = bool(present_vals) and all(v >= expected_ctx for v in present_vals)
+    return {
+        "expected_num_ctx": expected_ctx,
+        "models": model_ctx,
+        "all_synced": all_synced,
+        "status": "HEALTHY" if all_synced else "WARNING",
+    }
+
+
 def check_opencode_mem_health(mem_log_path: Path | None = None) -> dict:
     """Verifica si autoCaptureEnabled está mitigado y cuenta timeouts históricos en opencode-mem.log."""
     log_file = mem_log_path or DEFAULT_MEM_LOG
@@ -151,6 +184,7 @@ def analyze_recent_sessions(
     stalled_sessions: list[dict] = []
     compaction_storms: list[dict] = []
     amnesia_events: list[dict] = []
+    output_limit_truncations: list[dict] = []
     tool_execution_errors: list[dict] = []
     analyzed_count = 0
 
@@ -296,10 +330,76 @@ def analyze_recent_sessions(
                                         "error_message": err_msg[:240],
                                     }
                                 )
+
+                    # 3. Detectar truncamientos por techo de contexto/salida (output-limit / finish=length)
+                    idle_err_rows = conn.execute(
+                        f"""
+                        SELECT session_id, id, seq, data
+                        FROM session_message
+                        WHERE session_id IN ({placeholders})
+                          AND type = 'idle'
+                          AND data LIKE '%output-limit%'
+                        ORDER BY time_created DESC
+                        LIMIT 50
+                        """,
+                        sids,
+                    ).fetchall()
+
+                    for r in idle_err_rows:
+                        sid = r["session_id"]
+                        try:
+                            d = json.loads(r["data"] or "{}")
+                        except Exception:
+                            d = {}
+                        err_obj = d.get("error") if isinstance(d.get("error"), dict) else {}
+                        if err_obj.get("type") == "output-limit":
+                            output_limit_truncations.append(
+                                {
+                                    "session_id": sid,
+                                    "message_id": r["id"],
+                                    "kind": "idle_output_limit",
+                                    "agent": session_map[sid].get("agent") or "unknown",
+                                    "message": str(err_obj.get("message") or "")[:200],
+                                }
+                            )
+
+                    len_rows = conn.execute(
+                        f"""
+                        SELECT session_id, id, seq, data
+                        FROM session_message
+                        WHERE session_id IN ({placeholders})
+                          AND type = 'assistant'
+                          AND (data LIKE '%"finish":"length"%' OR data LIKE '%"finish": "length"%')
+                        ORDER BY time_created DESC
+                        LIMIT 50
+                        """,
+                        sids,
+                    ).fetchall()
+
+                    for r in len_rows:
+                        sid = r["session_id"]
+                        try:
+                            d = json.loads(r["data"] or "{}")
+                        except Exception:
+                            continue
+                        toks = d.get("tokens") or {}
+                        out_tok = int(toks.get("output") or 0)
+                        if d.get("finish") == "length" and out_tok < 100:
+                            output_limit_truncations.append(
+                                {
+                                    "session_id": sid,
+                                    "message_id": r["id"],
+                                    "kind": "assistant_length_starvation",
+                                    "agent": d.get("agent") or session_map[sid].get("agent") or "unknown",
+                                    "input_tokens": int(toks.get("input") or 0),
+                                    "output_tokens": out_tok,
+                                }
+                            )
         except Exception:
             pass
 
     ollama_sockets = check_ollama_socket_health()
+    ollama_ctx = check_ollama_ctx_health(expected_ctx=24576)
     mem_health = check_opencode_mem_health(mem_log_path=mem_log_path)
 
     error_counts_by_type: dict[str, int] = {}
@@ -332,10 +432,18 @@ def analyze_recent_sessions(
         recommendations.append(
             f"Registrados {error_counts_by_type['edit_oldstring_mismatch']} error(es) históricos 'Could not find oldString' en edit; mitigado con protocolo READ-BEFORE-EDIT y edición atómica."
         )
+    if output_limit_truncations:
+        recommendations.append(
+            f"Detectados {len(output_limit_truncations)} truncamiento(s) por techo de contexto/salida (finish=length / output-limit); mitigado con Ollama num_ctx=24576 y OpenCode limit 22528/2560."
+        )
+    if not ollama_ctx["all_synced"]:
+        recommendations.append(
+            "Uno o más modelos de Ollama no tienen PARAMETER num_ctx 24576; ejecuta scripts/configure-ollama-ctx.sh."
+        )
 
     if ollama_sockets["zombie_queue_detected"] or not mem_health["mitigated"]:
         health_status = "CRITICAL"
-    elif stalled_sessions or compaction_storms or amnesia_events or tool_execution_errors:
+    elif stalled_sessions or compaction_storms or amnesia_events or tool_execution_errors or output_limit_truncations:
         health_status = "HISTORICAL_WARNINGS_MITIGATED"
     else:
         health_status = "HEALTHY"
@@ -346,9 +454,11 @@ def analyze_recent_sessions(
         "stalled_sessions": stalled_sessions,
         "compaction_storms": compaction_storms,
         "amnesia_events": amnesia_events,
+        "output_limit_truncations": output_limit_truncations[:30],
         "tool_execution_errors": tool_execution_errors[:30],
         "error_counts_by_type": error_counts_by_type,
         "ollama_socket_health": ollama_sockets,
+        "ollama_ctx_health": ollama_ctx,
         "opencode_mem_health": mem_health,
         "recommendations": recommendations,
     }

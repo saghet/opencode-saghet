@@ -939,6 +939,30 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
                     "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
                     ("msg_err_1", "ses_root_1", "assistant", 10, now_ms, now_ms, json.dumps(bad_tools_payload)),
                 )
+                conn.execute(
+                    "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        "msg_len_1",
+                        "ses_root_1",
+                        "assistant",
+                        11,
+                        now_ms + 1,
+                        now_ms + 1,
+                        json.dumps({"agent": "saghet-orchestrator", "finish": "length", "tokens": {"input": 16366, "output": 18}}),
+                    ),
+                )
+                conn.execute(
+                    "INSERT INTO session_message VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        "msg_idle_outlim",
+                        "ses_root_1",
+                        "idle",
+                        12,
+                        now_ms + 2,
+                        now_ms + 2,
+                        json.dumps({"error": {"type": "output-limit", "message": "Response still truncated after two output token limit continuations"}}),
+                    ),
+                )
                 conn.commit()
 
             diag = analyze_recent_sessions(db_path=tmp_db, limit_sessions=10)
@@ -950,6 +974,9 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             self.assertEqual(diag["error_counts_by_type"].get("skill_agent_confusion"), 1)
             self.assertEqual(diag["error_counts_by_type"].get("webfetch_invalid_json_format"), 1)
             self.assertEqual(diag["error_counts_by_type"].get("edit_oldstring_mismatch"), 1)
+            self.assertEqual(len(diag["output_limit_truncations"]), 2)
+            self.assertTrue(diag["ollama_ctx_health"]["all_synced"])
+            self.assertEqual(diag["ollama_ctx_health"]["models"].get("qwen3.5:9b"), 24576)
             self.assertTrue(diag["opencode_mem_health"]["mitigated"])
 
 
