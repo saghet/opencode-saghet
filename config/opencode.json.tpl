@@ -807,21 +807,21 @@
           }
         },
         "deepseek-r1:8b": {
-          "name": "deepseek-r1:8b",
+          "name": "deepseek-r1:8b (Solo Chat / Sin Tools)",
           "reasoning": true,
           "tools": false,
           "limit": {
             "context": 16384,
-            "output": 2048
+            "output": 3072
           }
         },
         "huihui_ai/deepseek-r1-abliterated:8b-0528-qwen3": {
-          "name": "huihui_ai/deepseek-r1-abliterated:8b-0528-qwen3",
+          "name": "deepseek-r1-abliterated:8b (Solo Chat / Sin Tools)",
           "reasoning": true,
           "tools": false,
           "limit": {
             "context": 16384,
-            "output": 2048
+            "output": 3072
           }
         },
         "huihui_ai/qwen3.5-abliterated:latest": {

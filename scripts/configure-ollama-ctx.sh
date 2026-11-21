@@ -3,7 +3,7 @@ set -euo pipefail
 
 # OpenCode-Saghet — Configurador idempotente de contexto físico y anti-bucles en Ollama
 # 1) Asegura PARAMETER num_ctx 24576 en la familia qwen3.5 sin duplicar blobs en disco.
-# 2) Asegura PARAMETER num_ctx 16384, num_predict 2048 y repeat_penalty 1.15 en modelos deepseek-r1
+# 2) Asegura PARAMETER num_ctx 16384, num_predict 3072 y repeat_penalty 1.15 en modelos deepseek-r1
 #    para impedir bucles infinitos de pensamiento (<think>) de 15,000+ tokens.
 
 TARGET_CTX="${1:-24576}"
@@ -37,12 +37,12 @@ for m in "${R1_MODELS[@]}"; do
     MF_OUT="$(ollama show "$m" --modelfile 2>/dev/null || true)"
     CUR_NP="$(printf "%s\n" "$MF_OUT" | awk '/^PARAMETER num_predict / {print $3}' | tail -n1 || true)"
     CUR_RP="$(printf "%s\n" "$MF_OUT" | awk '/^PARAMETER repeat_penalty / {print $3}' | tail -n1 || true)"
-    if [ "$CUR_NP" != "2048" ] || [ "$CUR_RP" != "1.15" ]; then
+    if [ "$CUR_NP" != "3072" ] || [ "$CUR_RP" != "1.15" ]; then
       TMP_MF="$(mktemp)"
-      printf "FROM %s\nPARAMETER num_ctx 16384\nPARAMETER num_predict 2048\nPARAMETER repeat_penalty 1.15\n" "$m" > "$TMP_MF"
+      printf "FROM %s\nPARAMETER num_ctx 16384\nPARAMETER num_predict 3072\nPARAMETER repeat_penalty 1.15\n" "$m" > "$TMP_MF"
       ollama create "$m" -f "$TMP_MF" >/dev/null 2>&1 || true
       rm -f "$TMP_MF"
-      printf "[SAGHET] Anti-bucle Ollama actualizado para %s -> num_predict=2048, repeat_penalty=1.15\n" "$m"
+      printf "[SAGHET] Anti-bucle Ollama actualizado para %s -> num_predict=3072, repeat_penalty=1.15\n" "$m"
     fi
   fi
 done
