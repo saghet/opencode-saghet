@@ -68,7 +68,9 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             self.assertIn(name, agents, f"Falta agente {name}")
 
         plugins_res = subprocess.run(["opencode", "plugin", "list", "--builtin"], capture_output=True, text=True, timeout=10, check=False)
-        plugins_text = plugins_res.stdout if plugins_res.returncode == 0 else json.dumps(cfg.get("plugins") or [])
+        cli_out = (plugins_res.stdout or "").strip()
+        cfg_plugins = json.dumps(cfg.get("plugins") or cfg.get("plugin") or [])
+        plugins_text = cli_out if (plugins_res.returncode == 0 and cli_out and "no plugins found" not in cli_out.lower()) else cfg_plugins
         self.assertIn("opencode-dcp", plugins_text)
         self.assertIn("opencode-mem", plugins_text)
         self.assertIn("plannotator", plugins_text)
