@@ -62,6 +62,22 @@ _DOC_KEYWORDS = re.compile(
     r"\b(documentaci[oó]n|manual|readme|mermaid|gu[ií]a|changelog)\b",
     re.IGNORECASE,
 )
+_TRANSFORM_KEYWORDS = re.compile(
+    r"\b(convierte.*cli|cli\s+a\s+(?:web|desktop|m[oó]vil|escritorio)|cli\s+to\s+(?:web|desktop|mobile)|transformaci[oó]n\s+de\s+interfaz|equivalencia\s+funcional)\b",
+    re.IGNORECASE,
+)
+_REUSE_KEYWORDS = re.compile(
+    r"\b(reutiliz(?:a|ar|aci[oó]n)\s+(?:de\s+)?(?:c[oó]digo|github)|github\s+reuse|buscar\s+en\s+github|biblioteca\s+en\s+github)\b",
+    re.IGNORECASE,
+)
+_LICENSE_KEYWORDS = re.compile(
+    r"\b(licencia|license|spdx|gpl|agpl|apache-2\.0|atribuci[oó]n|attribution|compliance)\b",
+    re.IGNORECASE,
+)
+_DOMAIN_KEYWORDS = re.compile(
+    r"\b(extrae(?:r)?\s+(?:reglas\s+de\s+negocio|dominio)|domain\s+layer|desacopl(?:a|ar)\s+dominio)\b",
+    re.IGNORECASE,
+)
 _READONLY_INTENT_RE = re.compile(
     r"^\s*(analiza|revisa|audita|diagnostica|explica|investiga|lista|consulta|resume|describe|"
     r"analyze|review|audit|diagnose|explain|investigate|list|query|summarize|describe|"
@@ -488,6 +504,14 @@ def classify_and_route(
         domains.append("observability")
     if _DOC_KEYWORDS.search(text):
         domains.append("documentation")
+    if _TRANSFORM_KEYWORDS.search(text):
+        domains.append("transformation")
+    if _REUSE_KEYWORDS.search(text):
+        domains.append("code_reuse")
+    if _LICENSE_KEYWORDS.search(text):
+        domains.append("license_compliance")
+    if _DOMAIN_KEYWORDS.search(text):
+        domains.append("domain_engineering")
     if not domains:
         domains.append("general")
 
@@ -534,6 +558,10 @@ def classify_and_route(
             "evaluation": "agent-evaluation-engineer",
             "observability": "agent-observability-engineer",
             "documentation": "documentation-engineer",
+            "transformation": "software-transformation-specialist",
+            "code_reuse": "code-reuse-specialist",
+            "license_compliance": "license-compliance-specialist",
+            "domain_engineering": "domain-engineering-specialist",
             "general": "researcher" if is_readonly else "senior-developer",
         }
         primary_Domain = domains[0]

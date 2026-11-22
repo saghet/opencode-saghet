@@ -562,12 +562,14 @@ class SmartModelRouter:
         avoid_vram_swap: bool = True,
         allow_heavy_cpu_offload: bool = False,
         external_provider_available: bool = False,
+        gemini_coordinator_available: bool = False,
     ) -> dict:
         """
         Selecciona el modelo óptimo y cadena de fallback para una especialidad:
         - classification: modelo ligero (qwen3.5:4b), o mantiene qwen3.5:9b si ya está en VRAM y avoid_vram_swap=True.
         - coding: modelo especializado con tool-calling confiable (qwen3.5:9b).
-        - architecture: modelo de alta capacidad dentro de 8 GB VRAM (qwen3.5:9b; o pesado solo si allow_heavy_cpu_offload=True).
+        - architecture / research / coordination: usa `google/gemini-4-neon` si el proveedor Gemini oficial
+          está habilitado (`gemini_coordinator_available=True`), con fallback automático a Ollama local 8 GB VRAM.
         - independent_review / security_audit: modelo independiente (abliterant/qwen3.5-rana:9b) para evitar sesgo de auto-confirmación.
         """
         spec = specialty if specialty in SPECIALTY_WEIGHTS else "coding"
@@ -577,6 +579,29 @@ class SmartModelRouter:
 
         vram_swap_avoided = False
         reason = f"Seleccionado por mayor puntuación verificable en especialidad '{spec}' dentro de 8 GB VRAM."
+
+        if gemini_coordinator_available and spec in {"architecture", "research", "independent_review"}:
+            local_fallback = primary
+            primary = "google/gemini-4-neon"
+            reason = (
+                f"Coordinador oficial Gemini 4 Neon (`google/gemini-4-neon`) activo para '{spec}' "
+                f"con fallback local verificado a '{local_fallback}'."
+            )
+            fallbacks = [local_fallback, "ollama/qwen3.5:9b", "ollama/qwen3:8b"]
+            if external_provider_available:
+                fallbacks.append("external/openai-compatible-fallback")
+            dedup_fb = list(dict.fromkeys(f for f in fallbacks if f != primary))
+            return {
+                "specialty": spec,
+                "selected_model": primary,
+                "verifiable_score": None,
+                "base_verifiable_score": None,
+                "historical_outcome": self.get_historical_model_bonus(primary, spec),
+                "vram_swap_avoided": True,
+                "vram_currently_loaded": vram_loaded,
+                "fallback_chain": dedup_fb,
+                "reason": reason,
+            }
 
         # Si la tarea es clasificación ligera pero qwen3.5:9b ya está cargado en VRAM,
         # evitar expulsarlo ahorra ~4-6s de recarga de pesos en Ollama (MAX_LOADED_MODELS=1).

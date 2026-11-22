@@ -33,24 +33,40 @@ KNOWN_AGENT_NAMES = {
     "plan",
     "fast-helper",
     "architect",
+    "researcher",
     "senior-developer",
     "backend-specialist",
     "frontend-specialist",
     "database-specialist",
-    "database-engineer",
     "devops-engineer",
     "security-auditor",
-    "qa-engineer",
     "code-reviewer",
-    "debugger",
+    "qa-engineer",
     "performance-engineer",
     "documentation-engineer",
-    "documentation-writer",
-    "researcher",
     "agent-evaluation-engineer",
     "agent-observability-engineer",
     "integration-architect",
     "platform-security-engineer",
+    "semantic-architecture-specialist",
+    "repository-intelligence-specialist",
+    "code-reuse-specialist",
+    "software-transformation-specialist",
+    "domain-engineering-specialist",
+    "frontend-product-engineer",
+    "api-integration-specialist",
+    "architecture-validation-specialist",
+    "license-compliance-specialist",
+}
+
+LEGACY_AGENT_NAMES = {
+    "database-engineer",
+    "debugger",
+    "documentation-writer",
+    "developer",
+    "orchestrator",
+    "gentleman",
+    "build",
 }
 
 
@@ -175,6 +191,25 @@ def check_opencode_mem_health(mem_log_path: Path | None = None) -> dict:
     }
 
 
+def _open_readonly_db(db_path: Path) -> sqlite3.Connection:
+    """Abre SQLite en solo lectura con respaldo immutable=1 para bases WAL activas."""
+    last_err: Exception | None = None
+    for uri in (f"file:{db_path}?mode=ro", f"file:{db_path}?immutable=1"):
+        candidate = None
+        try:
+            candidate = sqlite3.connect(uri, uri=True, timeout=3.0)
+            candidate.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchone()
+            return candidate
+        except sqlite3.Error as exc:
+            last_err = exc
+            if candidate is not None:
+                try:
+                    candidate.close()
+                except Exception:
+                    pass
+    raise last_err if last_err is not None else sqlite3.OperationalError("No se pudo abrir SQLite")
+
+
 def analyze_recent_sessions(
     db_path: Path | None = None,
     mem_log_path: Path | None = None,
@@ -189,12 +224,12 @@ def analyze_recent_sessions(
     amnesia_events: list[dict] = []
     output_limit_truncations: list[dict] = []
     tool_execution_errors: list[dict] = []
+    legacy_agent_sessions: list[dict] = []
     analyzed_count = 0
 
     if target_db.is_file():
         try:
-            uri = f"file:{target_db}?mode=ro"
-            with contextlib.closing(sqlite3.connect(uri, uri=True, timeout=3.0)) as conn:
+            with contextlib.closing(_open_readonly_db(target_db)) as conn:
                 conn.row_factory = sqlite3.Row
                 sessions = conn.execute(
                     """
@@ -231,6 +266,10 @@ def analyze_recent_sessions(
                     sid = s["id"]
                     s_dict = dict(s)
                     session_map[sid] = s_dict
+                    if (s["agent"] or "") in LEGACY_AGENT_NAMES:
+                        legacy_agent_sessions.append(
+                            {"session_id": sid, "agent": s["agent"], "title": s["title"] or sid}
+                        )
                     if s["idle_outcome"] is None:
                         updated_ms = s["time_updated"] or s["time_created"] or now_ms
                         age_s = max(round((now_ms - updated_ms) / 1000.0, 1), 0.0)
@@ -509,6 +548,7 @@ def analyze_recent_sessions(
         "amnesia_events": amnesia_events,
         "output_limit_truncations": output_limit_truncations[:30],
         "tool_execution_errors": tool_execution_errors[:30],
+        "legacy_agent_sessions": legacy_agent_sessions[:15],
         "error_counts_by_type": error_counts_by_type,
         "ollama_socket_health": ollama_sockets,
         "ollama_ctx_health": ollama_ctx,

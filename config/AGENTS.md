@@ -1,6 +1,6 @@
-# OpenCode-Saghet — Arquitectura Multiagente Autónoma
+# OpenCode-Saghet — Arquitectura Multiagente Autónoma (`v0.5.0-gemini4-neon`)
 
-Distribución local-first sobre **OpenCode v2.3.2**, **Ollama 0.40.16**, **Gentle AI 4.5.0**, **DCP 3.2.1**, **OpenCode Memory 2.43.0**, **DBHub 1.7.1**, **Context7** y **Sequential Thinking**.
+Distribución inteligente sobre **OpenCode v2.3.2**, **Gemini 4 Neon (`google/gemini-4-neon`, coordinador oficial con fallback local)**, **Ollama 0.40.16**, **Gentle AI 4.5.0**, **DCP 3.2.1**, **OpenCode Memory 2.43.0**, **DBHub 1.7.1**, **Context7** y **Sequential Thinking**.
 
 ## Flujo Obligatorio (Fases A–F)
 1. **A — COMPRENSIÓN:** Clasificar objetivo, complejidad, riesgo y criterio de aceptación.
@@ -35,7 +35,16 @@ Distribución local-first sobre **OpenCode v2.3.2**, **Ollama 0.40.16**, **Gentl
 15. `agent-observability-engineer` (`subagent`, `9b`, RO, bajo demanda): Diagnóstico de trazas, bucles y sesiones.
 16. `integration-architect` (`subagent`, `9b`, RO, bajo demanda): Contratos ACP (DeepSeek Harness), Gentle AI y MCP.
 17. `platform-security-engineer` (`subagent`, `abliterant/qwen3.5-rana:9b`, RO, bajo demanda): Blindaje de APIs locales, CSRF/DNS Rebinding y worktrees.
+18. `semantic-architecture-specialist` (`subagent`, RO): Comprensión de requisitos, arquitectura por capas y alternativas.
+19. `repository-intelligence-specialist` (`subagent`, RO): Repo Graph, GitHub Code Search y análisis estático externo.
+20. `code-reuse-specialist` (`subagent`, R/W/Bash): Adaptación selectiva de componentes externos (nunca copia masiva).
+21. `software-transformation-specialist` (`subagent`, R/W/Bash): Transformación CLI->Web/Desktop/Mobile con equivalencia funcional 1:1.
+22. `domain-engineering-specialist` (`subagent`, R/W/Bash): Extracción de reglas de negocio y desacoplamiento de interfaces.
+23. `frontend-product-engineer` (`subagent`, R/W/Bash): Productos gráficos reales (Web/Desktop/Mobile) sin UI falsa ni wrappers CLI.
+24. `api-integration-specialist` (`subagent`, R/W/Bash): Contratos REST/WebSocket e integración real de servicios.
+25. `architecture-validation-specialist` (`subagent`, RO): Verificación de capas, ciclos, equivalencia funcional y anti-UI falsa.
+26. `license-compliance-specialist` (`subagent`, RO): Auditoría SPDX, compatibilidad legal y atribuciones.
 
 ## Supervisor de Calidad y Seguridad por Defecto
-- **Supervisor (`quality_supervisor.py`):** Exige evidencia real (diffs, tests con código 0 y veredicto independiente) antes de emitir `ACCEPT`, `CORRECT` (máx. 2 reintentos) o `REJECT` (rollback de worktree).
-- **Seguridad:** Prohibido leer/editar `.env*`, `.env.db`, `service.json`, `.auth-token`, `.saghet-dashboard-token`, `*.key`, `*.pem` o `.ssh/*`, o ejecutar comandos destructivos (`DROP`, `TRUNCATE`, `rm -rf`, `git push --force`).
+- **Supervisor (`quality_supervisor.py`):** Exige evidencia real (diffs, tests con código 0, Matriz de Equivalencia Funcional, Anti-UI Falsa y veredicto independiente) antes de emitir `ACCEPT`, `CORRECT` (máx. 2 reintentos) o `REJECT` (rollback de worktree).
+- **Seguridad:** Prohibido leer/editar `.env*`, `.env.db`, `service.json`, `.auth-token`, `.saghet-dashboard-token`, `*.key`, `*.pem` o `.ssh/*`, ejecutar scripts de repos externos no auditados o comandos destructivos (`DROP`, `TRUNCATE`, `rm -rf`, `git push --force`).

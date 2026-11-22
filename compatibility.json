@@ -1,10 +1,19 @@
 {
   "distribution": "OpenCode-Saghet",
-  "version": "0.4.0-cognitive-evolution-v3",
+  "version": "0.5.0-gemini4-neon",
   "upstream": {
     "repository": "https://github.com/anomalyco/opencode",
     "version": "2.3.2",
     "license": "MIT"
+  },
+  "coordinator_intelligence": {
+    "provider": "google",
+    "npm_package": "@ai-sdk/google",
+    "official_model_id": "gemini-4-neon",
+    "opencode_model_id": "google/gemini-4-neon",
+    "api_base": "https://generativelanguage.googleapis.com/v1beta",
+    "local_fallback": "ollama/qwen3.5:9b",
+    "specialists_total": 26
   },
   "target_os": {
     "distro": "Garuda Linux (Arch-based)",

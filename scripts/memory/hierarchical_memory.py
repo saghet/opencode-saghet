@@ -1163,6 +1163,116 @@ class HierarchicalMemoryStore:
 
         return {"ok": True, "consolidated_count": len(consolidated), "items": consolidated}
 
+    def record_technical_decision(
+        self,
+        problem: str,
+        alternatives_evaluated: list[str],
+        decision: str,
+        justification: str,
+        consequences: list[str] | str,
+        project_path: str = "*",
+        provenance: str = "semantic-architecture-specialist",
+        verified: bool = True,
+        tags: list[str] | None = None,
+    ) -> dict:
+        """
+        Registra una decisión técnica estructurada (ADR en memoria, Fase 9):
+        Problema, Alternativas evaluadas, Decisión, Justificación, Consecuencias, Fecha y Proyecto.
+        Nunca promueve hipótesis no verificadas (`verified=False`) a hechos válidos permanentes.
+        """
+        clean_prob = (problem or "").strip()
+        clean_dec = (decision or "").strip()
+        clean_just = (justification or "").strip()
+        alts = [str(a).strip() for a in (alternatives_evaluated or []) if str(a).strip()]
+        cons_list = [consequences.strip()] if isinstance(consequences, str) and consequences.strip() else [
+            str(c).strip() for c in (consequences or []) if str(c).strip()
+        ]
+        if not clean_prob or not clean_dec or not clean_just:
+            return {"ok": False, "error": "problem, decision y justification son obligatorios"}
+
+        date_iso = time.strftime("%Y-%m-%d", time.gmtime())
+        structured = {
+            "schema": "saghet.technical-decision/v1",
+            "problem": clean_prob,
+            "alternatives_evaluated": alts,
+            "decision": clean_dec,
+            "justification": clean_just,
+            "consequences": cons_list,
+            "date": date_iso,
+            "verified": bool(verified),
+        }
+        content = (
+            f"Problema: {clean_prob}\n"
+            f"Alternativas evaluadas: {'; '.join(alts) or 'N/A'}\n"
+            f"Decisión: {clean_dec}\n"
+            f"Justificación: {clean_just}\n"
+            f"Consecuencias: {'; '.join(cons_list) or 'N/A'}\n"
+            f"Fecha: {date_iso}"
+        )
+        return self.store_memory(
+            tier="project",
+            category="architectural_decision",
+            title=f"ADR ({date_iso}): {clean_dec[:120]}",
+            content=content,
+            provenance=provenance,
+            project_path=project_path,
+            context={
+                "tags": sorted({"technical_decision", "adr", *(tags or [])}),
+                "technical_decision": structured,
+                "fact_type": "fact" if verified else "hypothesis",
+            },
+            confidence=0.95 if verified else 0.55,
+            status="valid" if verified else "provisional",
+            importance=0.92 if verified else 0.45,
+            evidence={"verified": bool(verified), "alternatives_count": len(alts)},
+        )
+
+    def list_technical_decisions(
+        self,
+        project_path: str = "*",
+        include_unverified: bool = False,
+        limit: int = 30,
+    ) -> list[dict]:
+        """Devuelve el registro estructurado de decisiones técnicas verificadas para un proyecto."""
+        norm_proj = str(Path(project_path).resolve()) if project_path and project_path != "*" else "*"
+        rows = self.inspect_memories(
+            tier="project",
+            category="architectural_decision",
+            project_path=norm_proj if norm_proj != "*" else None,
+            limit=max(1, min(100, limit * 2)),
+        )
+        out: list[dict] = []
+        for r in rows:
+            status = r.get("status")
+            if status in {"superseded", "invalidated", "expired"}:
+                continue
+            if not include_unverified and status != "valid":
+                continue
+            ctx = r.get("context") or {}
+            td = ctx.get("technical_decision")
+            if not td:
+                td = {
+                    "problem": r["title"],
+                    "alternatives_evaluated": [],
+                    "decision": r["content"][:220],
+                    "justification": r["provenance"],
+                    "consequences": [],
+                    "date": (r.get("created_at") or "")[:10],
+                    "verified": status == "valid",
+                }
+            out.append(
+                {
+                    "id": r["id"],
+                    "project_path": r["project_path"],
+                    "status": status,
+                    "created_at": r["created_at"],
+                    **td,
+                }
+            )
+            if len(out) >= limit:
+                break
+        return out
+
     def prune_expired_memories(self) -> dict:
         """Marca como expirados los recuerdos cuya fecha valid_until ya venció."""
         now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

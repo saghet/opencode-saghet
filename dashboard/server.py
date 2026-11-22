@@ -1015,6 +1015,26 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(500, {"ok": False, "error": str(exc)})
             return
 
+        if parsed.path == "/api/intelligence/status":
+            try:
+                from scripts.intelligence.gemini_core import Gemini4NeonCoordinator
+                from scripts.intelligence.semantic_engine import detect_tree_sitter_support
+                coord = Gemini4NeonCoordinator()
+                mem = HierarchicalMemoryStore()
+                self._send_json(
+                    200,
+                    {
+                        "ok": True,
+                        "gemini_core": coord.get_provider_status(probe_remote=False),
+                        "semantic_backend": detect_tree_sitter_support(),
+                        "recent_coordinator_decisions": coord.get_recent_decisions(limit=15),
+                        "technical_decisions": mem.list_technical_decisions(limit=15),
+                    },
+                )
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "error": str(exc)})
+            return
+
         if parsed.path == "/api/harness/status":
             adapter = DecoupledACPAdapter()
             board = HarnessTaskBoard()
@@ -1552,6 +1572,52 @@ class SaghetHandler(http.server.SimpleHTTPRequestHandler):
                     persistent_session_id=body.get("session_id"),
                 )
                 self._send_json(200 if res.get("ok") else 400, res)
+            return
+
+        if parsed.path == "/api/intelligence/plan":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(min(length, 65536)) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            objective = str(body.get("objective") or "").strip()
+            if not objective:
+                self._send_json(400, {"ok": False, "error": "objective es obligatorio"})
+                return
+            raw_dir = str(body.get("directory") or str(REPO_DIR))
+            dir_ok, resolved_dir, dir_reason = validate_project_directory(raw_dir, create_if_missing=False)
+            if not dir_ok or resolved_dir is None:
+                self._send_json(403, {"ok": False, "error": dir_reason})
+                return
+            from scripts.intelligence.task_planner import IntelligentTaskPlanner
+            plan = IntelligentTaskPlanner(memory_store=HierarchicalMemoryStore()).build_plan(
+                objective=objective,
+                project_path=resolved_dir,
+                target_platform=body.get("target_platform"),
+            )
+            write_audit_event("intelligence.plan", "ok", {"category": plan.get("task_category")}, self._client_ip())
+            self._send_json(200, plan)
+            return
+
+        if parsed.path == "/api/intelligence/semantic-graph":
+            length = int(self.headers.get("Content-Length", "0"))
+            raw = self.rfile.read(min(length, 65536)) if length > 0 else b"{}"
+            try:
+                body = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._send_json(400, {"ok": False, "error": "Invalid JSON"})
+                return
+            raw_dir = str(body.get("directory") or str(REPO_DIR))
+            dir_ok, resolved_dir, dir_reason = validate_project_directory(raw_dir, create_if_missing=False)
+            if not dir_ok or resolved_dir is None:
+                self._send_json(403, {"ok": False, "error": dir_reason})
+                return
+            from scripts.intelligence.semantic_engine import SemanticProjectEngine
+            graph = SemanticProjectEngine(memory_store=HierarchicalMemoryStore()).analyze_codebase(resolved_dir)
+            write_audit_event("intelligence.semantic_graph", "ok", {"directory": str(resolved_dir)}, self._client_ip())
+            self._send_json(200, graph)
             return
 
         self.send_error(404)

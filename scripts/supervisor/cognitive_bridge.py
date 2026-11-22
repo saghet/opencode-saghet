@@ -95,8 +95,18 @@ class CognitiveBridge:
             max_chars=max_chars,
         )
 
+        phase_handoff = None
+        if resolved_proj != "*":
+            try:
+                from scripts.memory.phase_ledger import get_phase_handoff
+                phase_handoff = get_phase_handoff(resolved_proj, max_chars=min(900, max_chars // 2))
+            except Exception:
+                phase_handoff = None
+
         # Ensamblar bloque compacto para inyectar en el prompt del agente
         sections: list[str] = []
+        if phase_handoff and phase_handoff.get("compact_handoff_prompt"):
+            sections.append(phase_handoff["compact_handoff_prompt"])
         intent_info = routing.get("intent_analysis") or {}
         r_plan = routing.get("reasoning_plan") or {}
         sections.append(

@@ -188,6 +188,14 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         self.assertEqual(cfg["permission"]["bash"].get("git push --force*"), "deny")
         self.assertEqual(cfg["permission"]["bash"].get("rm -rf /"), "deny")
 
+        # Fase 4: Allowlist estricta de subagentes en permission.task
+        task_perm = cfg["permission"].get("task") or {}
+        self.assertEqual(task_perm.get("*"), "deny")
+        self.assertEqual(task_perm.get("frontend-specialist"), "allow")
+        self.assertEqual(task_perm.get("qa-engineer"), "allow")
+        self.assertNotIn("developer", task_perm)
+        self.assertNotIn("database-engineer", task_perm)
+
         for secret_name in [".env", ".env.db", "service.json", ".auth-token"]:
             self.assertFalse((REPO_DIR / secret_name).exists(), f"Secreto encontrado en repo: {secret_name}")
 
@@ -410,7 +418,22 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
         self.assertEqual(d3["verdict"], "REJECT")
         self.assertEqual(d3["next_action"], "rollback_and_escalate")
 
-        # 2d. Entrega con evidencia real, pruebas exitosas y aprobación del revisor -> ACCEPT
+        # 2d. Entrega con evidencia pero sin revisión independiente -> CORRECT (Gate Creator-Verifier)
+        d_no_rev = sup.evaluate_execution(
+            objective="Corrige el bug en server.py",
+            agent="backend-specialist",
+            agent_output="Actualizado dashboard/server.py#L120-L145. Ran 7 tests in 3.5s [OK]",
+            iteration=1,
+            is_readonly=False,
+            diff_files=["dashboard/server.py"],
+            test_output="Ran 7 tests in 3.5s\n\nOK",
+            test_returncode=0,
+            reviewer_verdict=None,
+        )
+        self.assertEqual(d_no_rev["verdict"], "CORRECT")
+        self.assertTrue(any("missing_independent_review" in e for e in d_no_rev["missing_evidence"]))
+
+        # 2e. Entrega con evidencia real, pruebas exitosas y aprobación del revisor -> ACCEPT
         d_ok = sup.evaluate_execution(
             objective="Corrige el bug en server.py",
             agent="backend-specialist",
@@ -1038,6 +1061,25 @@ class TestOpenCodeSaghetAcceptance(unittest.TestCase):
             self.assertTrue(diag["ollama_ctx_health"]["all_synced"])
             self.assertEqual(diag["ollama_ctx_health"]["models"].get("qwen3.5:9b"), 24576)
             self.assertTrue(diag["opencode_mem_health"]["mitigated"])
+            self.assertIn("legacy_agent_sessions", diag)
+
+            # Fase 3: PhaseLedger compacto para arrancar fases en sesión limpia
+            from scripts.memory.phase_ledger import get_phase_handoff, record_phase_handoff
+            ledger_dir = Path(tmp) / "ledgers"
+            record_phase_handoff(
+                project_path=tmp,
+                phase_name="Fase 4",
+                summary="Backend FastAPI listo con /api/tools",
+                modified_files=["backend/main.py"],
+                api_contracts=["GET /api/tools"],
+                pending_next_step="Conectar frontend ToolsList.tsx",
+                verifier_status="APPROVED",
+                ledger_dir=ledger_dir,
+            )
+            handoff = get_phase_handoff(tmp, ledger_dir=ledger_dir)
+            self.assertIsNotNone(handoff)
+            self.assertIn("[PHASE_LEDGER]", handoff["compact_handoff_prompt"])
+            self.assertIn("GET /api/tools", handoff["compact_handoff_prompt"])
 
 
 if __name__ == "__main__":

@@ -87,6 +87,23 @@ if [ -f "${CFG_DIR}/opencode.json" ]; then
   else
     err "opencode.json contiene JSON inválido"
   fi
+  if grep -q '"gemini-4-neon"' "${CFG_DIR}/opencode.json" && grep -q '"@ai-sdk/google"' "${CFG_DIR}/opencode.json"; then
+    ok "Proveedor oficial Google Gemini 4 Neon (google/gemini-4-neon) registrado junto a Ollama"
+  else
+    warn "Proveedor Google Gemini 4 Neon no detectado en ${CFG_DIR}/opencode.json (ejecuta ./install.sh --skip-models)"
+  fi
+fi
+
+if [ -n "${GEMINI_API_KEY:-}" ] || [ -n "${GOOGLE_GENERATIVE_AI_API_KEY:-}" ]; then
+  ok "Variable de entorno GEMINI_API_KEY configurada para Gemini 4 Neon"
+else
+  warn "GEMINI_API_KEY no configurada en entorno actual (modo local-first Ollama activo; ejecuta 'opencode auth login' o exporta GEMINI_API_KEY para activar Gemini 4 Neon)"
+fi
+
+if python3 -c "import sys; sys.path.insert(0, '${REPO_DIR}'); import scripts.intelligence.gemini_core, scripts.intelligence.semantic_engine, scripts.intelligence.github_reuse, scripts.intelligence.transformation_engine, scripts.intelligence.visual_product, scripts.intelligence.task_planner" >/dev/null 2>&1; then
+  ok "Motores Saghet Intelligent Engineering Architecture (v0.5.0) importables y saludables"
+else
+  err "Error al importar los módulos de scripts/intelligence/"
 fi
 
 if [ -f "${CFG_DIR}/dcp.jsonc" ] && grep -q '"protectUserMessages": true' "${CFG_DIR}/dcp.jsonc"; then

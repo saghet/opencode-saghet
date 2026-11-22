@@ -483,13 +483,17 @@ class QualitySupervisor:
             test_returncode=test_returncode,
             require_tests=req_tests,
         )
+        if not ro and reviewer_verdict is None:
+            evidence_issues.append(
+                "missing_independent_review: Toda entrega con cambios de código requiere veredicto independiente (code-reviewer / qa-engineer) antes de ACCEPT."
+            )
 
         all_issues = reasoning_issues + evidence_issues
         can_retry = iteration < self.max_iterations
         error_class = classify_error("\n".join([*all_issues, test_output or "", agent_output or ""]), test_returncode) if all_issues else None
         recovery_strategy = recommend_recovery_strategy(error_class, iteration) if error_class else None
 
-        if not all_issues and (reviewer_verdict in {None, "APPROVED"}):
+        if not all_issues and ((ro and reviewer_verdict in {None, "APPROVED"}) or (not ro and reviewer_verdict == "APPROVED")):
             verdict = "ACCEPT"
             next_action = "deliver_or_merge"
             correction_prompt = None
@@ -631,3 +635,61 @@ class QualitySupervisor:
             "diff_files_count": len(changed),
             "affected_dependencies_checked": len(deps),
         }
+
+    def evaluate_transformation_delivery(
+        self,
+        objective: str,
+        output_dir: Path | str,
+        equivalence_report: dict,
+        reviewer_verdict: str | None = None,
+        unrunnable_tests: list[str] | None = None,
+    ) -> dict:
+        """
+        Gate especializado de Validación Funcional y Transformación (Fase 8):
+        - Exige evidencia real de la Matriz de Equivalencia Funcional (100% PASS).
+        - Ejecuta validador Anti-UI Falsa (`validate_ui_product_integrity`) sobre la interfaz generada.
+        - Requiere veredicto independiente (`architecture-validation-specialist` / `code-reviewer`).
+        - Declara explícitamente cualquier prueba que no pudo ejecutarse (jamás declara éxito sin evidencia).
+        """
+        from scripts.intelligence.visual_product import validate_ui_product_integrity
+
+        ui_check = validate_ui_product_integrity(output_dir)
+        issues: list[str] = []
+
+        if not ui_check.get("ok"):
+            for v in ui_check.get("violations", []):
+                issues.append(f"ui_integrity_violation:{v['code']} ({v['file']}): {v['detail']}")
+
+        eq_ok = bool(equivalence_report.get("ok"))
+        eq_total = int(equivalence_report.get("total", 0))
+        eq_passed = int(equivalence_report.get("passed", 0))
+        if eq_total == 0:
+            issues.append("missing_equivalence_tests: No se ejecutaron pruebas de equivalencia funcional.")
+        elif not eq_ok or eq_passed < eq_total:
+            issues.append(f"functional_equivalence_failed: Solo {eq_passed}/{eq_total} funcionalidades pasaron la matriz de equivalencia.")
+
+        unrun = [str(u).strip() for u in (unrunnable_tests or []) if str(u).strip()]
+        if reviewer_verdict is None:
+            issues.append("missing_independent_review: Falta aprobación independiente de architecture-validation-specialist o code-reviewer.")
+        elif reviewer_verdict.upper() != "APPROVED":
+            issues.append(f"reviewer_rejected: Veredicto independiente = {reviewer_verdict}.")
+
+        verdict = "ACCEPT" if (not issues and not unrun) else ("CORRECT" if not unrun else "PARTIAL_UNVERIFIED")
+        decision = {
+            "decision_id": uuid.uuid4().hex[:12],
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "phase": "transformation_quality_gate",
+            "objective_preview": (objective or "")[:180],
+            "verdict": verdict,
+            "ui_integrity": ui_check,
+            "equivalence_summary": {
+                "ok": eq_ok,
+                "passed": eq_passed,
+                "total": eq_total,
+                "equivalence_rate_pct": equivalence_report.get("equivalence_rate_pct", 0.0),
+            },
+            "unrunnable_tests_declared": unrun,
+            "issues": issues,
+        }
+        record_decision(decision)
+        return decision
