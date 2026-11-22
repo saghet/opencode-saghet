@@ -364,6 +364,24 @@ class Gemini4NeonCoordinator:
         )
         return {"ok": True, "previous_model": prev, "active_model": self.active_model, "provider": prov}
 
+    @staticmethod
+    def select_model_for_specialty(specialty: str) -> str:
+        """Selecciona el modelo oficial Gemini 4 óptimo por especialidad."""
+        spec = (specialty or "").strip().lower()
+        mapping = {
+            "architecture": "google/gemini-4-neon",
+            "research": "google/gemini-4-neon",
+            "coordination": "google/gemini-4-neon",
+            "coding": "google/gemini-4-argon",
+            "debugging": "google/gemini-4-argon",
+            "security_audit": "google/gemini-4-argon",
+            "independent_review": "google/gemini-4-argon",
+            "classification": "google/gemini-4-hydrogen",
+            "memory": "google/gemini-4-hydrogen",
+            "deep_reasoning": "google/gemini-4-carbon",
+        }
+        return mapping.get(spec, DEFAULT_COORDINATOR_MODEL)
+
     def has_api_key(self) -> bool:
         return bool(self._api_key)
 

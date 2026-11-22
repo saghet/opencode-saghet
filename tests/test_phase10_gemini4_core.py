@@ -173,9 +173,21 @@ class TestPhase10Gemini4Core(unittest.TestCase):
 
     def test_06_smart_model_router_hybrid_gemini_and_local_preserved(self) -> None:
         router = SmartModelRouter()
-        r_gem = router.route("architecture", gemini_coordinator_available=True)
-        self.assertEqual(r_gem["selected_model"], "google/gemini-4-neon")
-        self.assertIn("ollama/qwen3.5:9b", r_gem["fallback_chain"])
+        r_gem_arch = router.route("architecture", gemini_coordinator_available=True)
+        self.assertEqual(r_gem_arch["selected_model"], "google/gemini-4-neon")
+        self.assertIn("ollama/qwen3.5:9b", r_gem_arch["fallback_chain"])
+
+        r_gem_code = router.route("coding", gemini_coordinator_available=True)
+        self.assertEqual(r_gem_code["selected_model"], "google/gemini-4-argon")
+
+        r_gem_sec = router.route("security_audit", gemini_coordinator_available=True)
+        self.assertEqual(r_gem_sec["selected_model"], "google/gemini-4-argon")
+
+        r_gem_cls = router.route("classification", gemini_coordinator_available=True)
+        self.assertEqual(r_gem_cls["selected_model"], "google/gemini-4-hydrogen")
+
+        self.assertEqual(Gemini4NeonCoordinator.select_model_for_specialty("coding"), "google/gemini-4-argon")
+        self.assertEqual(Gemini4NeonCoordinator.select_model_for_specialty("classification"), "google/gemini-4-hydrogen")
 
         r_loc = router.route("architecture", loaded_in_vram=["qwen3.5:9b"], gemini_coordinator_available=False)
         self.assertEqual(r_loc["selected_model"], "ollama/qwen3.5:9b")

@@ -580,14 +580,30 @@ class SmartModelRouter:
         vram_swap_avoided = False
         reason = f"Seleccionado por mayor puntuación verificable en especialidad '{spec}' dentro de 8 GB VRAM."
 
-        if gemini_coordinator_available and spec in {"architecture", "research", "independent_review"}:
+        if gemini_coordinator_available:
+            gemini_specialty_map = {
+                "architecture": "google/gemini-4-neon",
+                "research": "google/gemini-4-neon",
+                "coding": "google/gemini-4-argon",
+                "debugging": "google/gemini-4-argon",
+                "security_audit": "google/gemini-4-argon",
+                "independent_review": "google/gemini-4-argon",
+                "classification": "google/gemini-4-hydrogen",
+                "memory": "google/gemini-4-hydrogen",
+            }
             local_fallback = primary
-            primary = "google/gemini-4-neon"
+            primary = gemini_specialty_map.get(spec, "google/gemini-4-neon")
             reason = (
-                f"Coordinador oficial Gemini 4 Neon (`google/gemini-4-neon`) activo para '{spec}' "
-                f"con fallback local verificado a '{local_fallback}'."
+                f"Familia Gemini 4 activa (`{primary}`) para especialidad '{spec}' "
+                f"con fallback cloud (`google/gemini-4-carbon`) y local verificado (`{local_fallback}`)."
             )
-            fallbacks = [local_fallback, "ollama/qwen3.5:9b", "ollama/qwen3:8b"]
+            fallbacks = [
+                "google/gemini-4-neon",
+                "google/gemini-4-carbon",
+                local_fallback,
+                "ollama/qwen3.5:9b",
+                "ollama/qwen3:8b",
+            ]
             if external_provider_available:
                 fallbacks.append("external/openai-compatible-fallback")
             dedup_fb = list(dict.fromkeys(f for f in fallbacks if f != primary))
